@@ -1263,6 +1263,10 @@ impl PatchLocator {
             let mut min_local_start = usize::MAX;
             let mut max_local_end = 0;
 
+            // Lowest relocation distance found in this pass, it will
+            // be enforced only in the next passes
+            let mut relocation_distance = conflict.relocation_distance;
+
             assert!(!hunks.is_empty());
 
             for hunk in &hunks {
@@ -1318,6 +1322,11 @@ impl PatchLocator {
                                 .len()
                                 .max(hunk.get_conflict_remote()?.len()),
                         )?;
+
+                        if let Some(d) = temp_conflict.relocation_distance {
+                            relocation_distance =
+                                Some(relocation_distance.map_or(d, |r: f64| r.min(d)));
+                        }
 
                         if found {
                             let out_of_bounds = temp_conflict.local_start < prev_local_end
@@ -1407,17 +1416,19 @@ impl PatchLocator {
                 }
             }
 
+            conflict.relocation_distance = relocation_distance;
             self.update_conflict_code(conflict, min_local_start, max_local_end);
 
             if restart {
                 log::debug!(
-                    "Relocated conflict out of order in {}:{}: [{},{}) -> [{},{})",
+                    "Relocated conflict out of order in {}:{}: [{},{}) -> [{},{}) distance {:?}",
                     conflict.file_path,
                     conflict.start_line,
                     orig_local_start,
                     orig_local_end,
                     conflict.local_start,
-                    conflict.local_end
+                    conflict.local_end,
+                    conflict.relocation_distance
                 );
                 log::debug!("Conflicts out of order, sorting and relocating");
                 return self.relocate_conflicts(conflicts, prev_conflicts);
@@ -1610,6 +1621,28 @@ impl PatchLocator {
         Ok(result)
     }
 
+    /// Ignore the calc_distances results that are not strictly lower
+    /// than the lowest distance found by the previous relocation
+    /// passes, and track the lowest distance found in this pass.
+    fn filter_distances(
+        result: Option<(Vec<f64>, usize)>,
+        prev_distance: f64,
+        min_distance: &mut f64,
+    ) -> Option<(Vec<f64>, usize)> {
+        let (mut distances, offset) = result?;
+        let best = distances.iter().copied().fold(f64::MAX, f64::min);
+        if best >= prev_distance {
+            return None;
+        }
+        *min_distance = min_distance.min(best);
+        for d in distances.iter_mut() {
+            if *d >= prev_distance {
+                *d = f64::MAX;
+            }
+        }
+        Some((distances, offset))
+    }
+
     fn update_conflict_code(&self, conflict: &mut Conflict, start: usize, end: usize) {
         conflict.local_start = start;
         conflict.local_end = end;
@@ -1634,12 +1667,22 @@ impl PatchLocator {
             ));
         }
 
+        // Distances above the lowest distance found in the previous
+        // passes are ignored to avoid relocation loops
+        let prev_distance = conflict.relocation_distance.unwrap_or(f64::MAX);
+        let mut min_distance = f64::MAX;
+
         let max_context_distance = self.calc_max_context_distance(conflict, head_context);
-        let (head_distances, offset) = match self.calc_distances(
-            head_context,
-            prev_local_end..next_local_start,
-            (false, false, max_context_distance),
-        )? {
+        let head_result = Self::filter_distances(
+            self.calc_distances(
+                head_context,
+                prev_local_end..next_local_start,
+                (false, false, max_context_distance),
+            )?,
+            prev_distance,
+            &mut min_distance,
+        );
+        let (head_distances, offset) = match head_result {
             Some((d, o)) => (Some(d), o),
             None => {
                 log::debug!(
@@ -1655,11 +1698,16 @@ impl PatchLocator {
         };
         let mut head_offset = offset + prev_local_end;
         let max_context_distance = self.calc_max_context_distance(conflict, tail_context);
-        let (tail_distances, offset) = match self.calc_distances(
-            tail_context,
-            prev_local_end..next_local_start,
-            (false, true, max_context_distance),
-        )? {
+        let tail_result = Self::filter_distances(
+            self.calc_distances(
+                tail_context,
+                prev_local_end..next_local_start,
+                (false, true, max_context_distance),
+            )?,
+            prev_distance,
+            &mut min_distance,
+        );
+        let (tail_distances, offset) = match tail_result {
             Some((d, o)) => (Some(d), o),
             None => {
                 log::debug!(
@@ -1674,6 +1722,11 @@ impl PatchLocator {
             }
         };
         let mut tail_offset = offset + prev_local_end;
+
+        if min_distance < f64::MAX {
+            conflict.relocation_distance = Some(prev_distance.min(min_distance));
+        }
+
         let head_context_len = head_context.len();
         if let Some(head_distances) = head_distances
             && let Some(tail_distances) = tail_distances
@@ -1683,7 +1736,13 @@ impl PatchLocator {
             let mut best_head = 0;
             let mut best_tail = 0;
             for (i, &hd) in head_distances.iter().enumerate() {
+                if hd == f64::MAX {
+                    continue;
+                }
                 for (j, &td) in tail_distances.iter().enumerate() {
+                    if td == f64::MAX {
+                        continue;
+                    }
                     let head_idx = prev_local_end + head_context_len + i;
                     let tail_idx = prev_local_end + j;
                     if head_idx <= tail_idx

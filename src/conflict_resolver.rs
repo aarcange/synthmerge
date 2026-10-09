@@ -73,6 +73,11 @@ pub struct Conflict {
     pub code_snippets: Arc<Vec<Snippet>>,
     pub hunks: Vec<Hunk>,
     pub conflict_relocation: bool,
+    /// Lowest calc_distances value found by previous relocation
+    /// passes: any relocation candidate with a distance greater or
+    /// equal to this value is ignored in the next passes, so the
+    /// relocation can't ping-pong between two positions forever.
+    pub relocation_distance: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
