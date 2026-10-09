@@ -1202,6 +1202,7 @@ impl PatchLocator {
         let extra_conflict_lines = self.context_lines.extra_conflict_lines as usize;
         let code_context_lines = self.context_lines.code_context_lines as usize;
 
+        conflicts.sort_by_key(|c| c.local_start);
         for conflict in conflicts.iter() {
             log::debug!(
                 "pre relocate conflicts: {:?} {}-{}",
@@ -1210,7 +1211,6 @@ impl PatchLocator {
                 conflict.local_end
             );
         }
-        conflicts.sort_by_key(|c| c.local_start);
 
         let mut restart = false;
         for i in 0..conflicts.len() {
