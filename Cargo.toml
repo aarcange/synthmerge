@@ -1,6 +1,6 @@
 [package]
 name = "synthmerge"
-version = "0.3.16"
+version = "0.3.17"
 edition = "2024"
 description = "AI-powered git mergetool that resolves conflicts using LLMs"
 readme = "README.md"
