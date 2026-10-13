@@ -328,7 +328,14 @@ impl GitUtils {
                     }
 
                     // Get the blob contents
-                    let local_content = self.get_blob_content_cached(&local_blob)?;
+                    let Some(local_content) = self.get_blob_content_cached(&local_blob)? else {
+                        log::warn!(
+                            "Skipping conflicts in {}: local blob {} is empty",
+                            file_path,
+                            local_blob
+                        );
+                        continue;
+                    };
 
                     // Compute diff between base and remote using git command
                     // let diff = GitCommand::new("git")
@@ -463,20 +470,25 @@ impl GitUtils {
         }
     }
 
-    /// Get the content of a git blob, using cache if available
-    fn get_blob_content_cached(&mut self, blob_hash: &str) -> Result<Arc<String>> {
+    /// Get the content of a git blob, using cache if available.
+    /// Returns None if the blob exists but it's empty.
+    fn get_blob_content_cached(&mut self, blob_hash: &str) -> Result<Option<Arc<String>>> {
         if let Some(cached) = self.blob_cache.get(blob_hash) {
-            return Ok(cached.clone());
+            return Ok(Some(cached.clone()));
         }
 
-        let content = Arc::new(self.get_blob_content(blob_hash)?);
+        let Some(content) = self.get_blob_content(blob_hash)? else {
+            return Ok(None);
+        };
+        let content = Arc::new(content);
         self.blob_cache
             .insert(blob_hash.to_string(), content.clone());
-        Ok(content)
+        Ok(Some(content))
     }
 
-    /// Get the content of a git blob
-    fn get_blob_content(&self, blob_hash: &str) -> Result<String> {
+    /// Get the content of a git blob.
+    /// Returns None if the blob exists but it's empty.
+    fn get_blob_content(&self, blob_hash: &str) -> Result<Option<String>> {
         let git_root = self.git_root.as_ref().unwrap();
         let output = GitCommand::new("git")
             .args(["-C", git_root, "show", blob_hash])
@@ -495,7 +507,8 @@ impl GitUtils {
 
         // Check if the blob is empty
         if content.is_empty() {
-            return Err(anyhow::anyhow!("Blob {} is empty", blob_hash));
+            log::debug!("Blob {} is empty", blob_hash);
+            return Ok(None);
         }
 
         // Check if the content is newline terminated
@@ -503,7 +516,7 @@ impl GitUtils {
             content.push('\n');
         }
 
-        Ok(content)
+        Ok(Some(content))
     }
 
     /// Create a regex pattern for matching conflict markers
