@@ -530,7 +530,7 @@ mod tests {
         );
         assert_eq!(config.endpoints[0].fallbacks.len(), 1);
         assert_eq!(config.endpoints[1].name, "Gemini 3.1 Pro");
-        assert_eq!(config.endpoints[2].name, "gpt-6-aura");
+        assert_eq!(config.endpoints[2].name, "gpt-6.1-sol");
         assert_eq!(
             config.endpoints[2].fallbacks[0].name,
             "fallback gpt-5.6-sol"

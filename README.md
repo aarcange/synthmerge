@@ -769,7 +769,7 @@ Model: Gemini 3 Flash (none default) # reasoning_effort: none
   Average duration: 1.73 s
 
 # temperature 0.15 top_p: 0.8 top_k: 20 min_p: 0.00 reasoning_effort: high
-Model: GML 5.3 (high) {0.3.16}
+Model: GLM 5.3 (high) {0.3.16}
   Accuracy: 63.15% (713/1129)
   Accuracy (aligned): 69.18% (781/1129)
   Accuracy (stripped): 72.72% (821/1129)
