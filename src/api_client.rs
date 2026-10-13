@@ -129,7 +129,13 @@ impl ApiClient {
         for (fallback_index, fallback) in self.endpoint.fallbacks.iter().enumerate() {
             let client = ApiClient::new(fallback.clone(), self.lmdb_cache.clone());
             match client.query_endpoint(api_request).await {
-                Ok(response) => return Ok((response, Some(fallback_index))),
+                Ok(response) => {
+                    if !response.iter().flatten().all(Result::is_err) {
+                        return Ok((response, Some(fallback_index)));
+                    }
+                    last_error =
+                        anyhow::anyhow!("All variants failed for fallback {}", fallback.name);
+                }
                 Err(e) => last_error = e,
             }
         }
