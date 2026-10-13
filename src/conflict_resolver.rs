@@ -449,7 +449,9 @@ impl<'a> ConflictResolver<'a> {
         for result in results {
             let endpoint_index = result.1;
             let fallback = result.2;
-            let endpoint = &endpoints[endpoint_index];
+            // Resolve the effective endpoint (the fallback if one was used)
+            // so variant names and error attribution are consistent
+            let endpoint = self.resolve_endpoint(endpoints, endpoint_index, fallback);
             let result = match &result.0 {
                 Ok(r) => r,
                 Err(e) => {
@@ -496,12 +498,7 @@ impl<'a> ConflictResolver<'a> {
 
                     let mut seen_resolved = std::collections::HashMap::new();
                     for (multi, resolved_string) in resolved_strings.iter().enumerate() {
-                        let model = self.get_model_name_multi(
-                            self.resolve_endpoint(endpoints, endpoint_index, fallback),
-                            variant,
-                            beam,
-                            multi,
-                        );
+                        let model = self.get_model_name_multi(endpoint, variant, beam, multi);
                         let mut resolved_version = resolved_string.to_string();
 
                         let mut found_context = false;
