@@ -887,6 +887,7 @@ impl PatchLocator {
                 new_local_end,
                 commit_type,
                 hunks,
+                merged_local_lines: self.merged_local_lines.clone(),
                 ..Default::default()
             };
 

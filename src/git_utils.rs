@@ -427,23 +427,23 @@ impl GitUtils {
                         Arc::new(String::from_utf8_lossy(&output.stdout).to_string())
                     };
 
+                    for conflict in &mut conflicts {
+                        conflict.merged_local_lines = merged_local_lines.clone();
+                    }
+
                     if self.resolution_mode == ResolutionMode::VibeWithPatchLocator {
                         let patch_locator = PatchLocator::new(
-                            local_content.clone(),
-                            merged_local_content.clone(),
-                            merged_local_lines.clone(),
-                            clean_diff.clone(),
-                            conflict_diff.clone(),
+                            local_content,
+                            merged_local_content,
+                            merged_local_lines,
+                            clean_diff,
+                            conflict_diff,
                             self.lmdb_cache.clone(),
                             self.context_lines,
                             max_context_size,
                             self.retries > 0,
                         );
                         patch_locator.patch_locator(&mut conflicts, prev_conflicts)?;
-                    }
-
-                    for conflict in &mut conflicts {
-                        conflict.merged_local_lines = merged_local_lines.clone();
                     }
 
                     // Replace solved conflicts with previous ones if hunks are identical
