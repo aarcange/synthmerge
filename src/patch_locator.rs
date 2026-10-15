@@ -1206,7 +1206,7 @@ impl PatchLocator {
         conflicts.sort_by_key(|c| c.local_start);
         for conflict in conflicts.iter() {
             log::debug!(
-                "pre relocate conflicts: {:?} {}-{}",
+                "pre relocate conflicts: {:?} [{},{})",
                 conflict.commit_type,
                 conflict.local_start,
                 conflict.local_end
@@ -1466,7 +1466,7 @@ impl PatchLocator {
 
         for conflict in conflicts.iter() {
             log::debug!(
-                "post relocate conflicts: {:?} {}-{}",
+                "post relocate conflicts: {:?} [{},{})",
                 conflict.commit_type,
                 conflict.local_start,
                 conflict.local_end
