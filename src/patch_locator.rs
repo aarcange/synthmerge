@@ -571,7 +571,7 @@ impl PatchLocator {
     const MISPLACED_CONTEXT_LINES: usize = 4;
     const EXTEND_CONFLICT_ON_CLEAN_MERGE: bool = true;
     const RELOCATE_BOTH_LENGTH_FACTOR: usize = 100;
-    const EXTEND_IF_WITHIN_LINES: usize = 10;
+    const EXTEND_IF_WITHIN_LINES: usize = 100;
 
     // https://github.com/rust-lang/rust-clippy/issues/1576
     #[allow(clippy::too_many_arguments)]
