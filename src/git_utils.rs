@@ -121,10 +121,11 @@ pub struct GitUtils {
     unresolved_clean_files: HashSet<String>,
     unresolved_added_files: HashSet<String>,
     unresolved_deleted_files: HashSet<String>,
+    assisted_by_line: String,
+    synthmerge_name: String,
 }
 
 impl GitUtils {
-    const ASSISTED_BY_LINE: &str = concat!("Assisted-by: ", env!("CARGO_PKG_NAME"));
     const REBASE_MESSAGE_FILE: &str = "rebase-merge/message";
     const MERGE_MSG_FILE: &str = "MERGE_MSG";
 
@@ -147,6 +148,12 @@ impl GitUtils {
                     .expect("Failed to create API cache"),
             )
         });
+        let synthmerge_name = env!("CARGO_PKG_NAME")
+            .chars()
+            .map(|c| c.to_ascii_uppercase())
+            .take(1)
+            .chain(env!("CARGO_PKG_NAME").chars().skip(1))
+            .collect::<String>();
         GitUtils {
             context_lines,
             in_rebase: false,
@@ -167,6 +174,8 @@ impl GitUtils {
             unresolved_clean_files: HashSet::new(),
             unresolved_added_files: HashSet::new(),
             unresolved_deleted_files: HashSet::new(),
+            assisted_by_line: format!("Assisted-by: {}", synthmerge_name),
+            synthmerge_name,
         }
     }
 
@@ -960,7 +969,7 @@ impl GitUtils {
             let marker = format!(
                 "{}{}: {}{}\n",
                 marker_raw,
-                env!("CARGO_PKG_NAME"),
+                self.synthmerge_name,
                 conflict.model,
                 conflict
                     .logprob
@@ -1709,9 +1718,9 @@ impl GitUtils {
                     .iter()
                     .collect::<Vec<&ResolvedConflict>>(),
             );
-            format!("{} [{}]", Self::ASSISTED_BY_LINE, models_str)
+            format!("{} [{}]", self.assisted_by_line, models_str)
         } else {
-            Self::ASSISTED_BY_LINE.to_string()
+            self.assisted_by_line.clone()
         }
     }
 
@@ -1736,7 +1745,7 @@ impl GitUtils {
             Err(_) => {
                 println!(
                     "If you use the AI generated code please add \"{}\"",
-                    Self::ASSISTED_BY_LINE
+                    self.assisted_by_line
                 );
                 return Ok(());
             }
@@ -1781,7 +1790,7 @@ impl GitUtils {
             }
         }
 
-        if !merge_msg_content.contains(Self::ASSISTED_BY_LINE) {
+        if !merge_msg_content.contains(&self.assisted_by_line) {
             let assisted_by_line = self.assisted_by_line(show_models);
             added_lines.push(format!("{}\n", assisted_by_line));
             println!("Added \"{}\"", assisted_by_line);
@@ -1798,7 +1807,7 @@ impl GitUtils {
 
             assert!(file_lists.iter().any(|f| !f.1.is_empty()));
             added_lines.push("\n".to_string());
-            added_lines.push("Synthmerge status:\n".to_string());
+            added_lines.push(format!("{} status:\n", self.synthmerge_name));
             for (title, files) in file_lists {
                 added_lines.extend(Self::format_conflict_list(title, files));
                 files.drain();
