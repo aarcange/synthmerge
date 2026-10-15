@@ -117,7 +117,7 @@ async fn main() -> Result<()> {
 
         if conflicts.is_empty() {
             println!("No conflicts found.");
-            if args.continue_op && git_utils.continue_operation(&context_lines)? {
+            if args.vibe && git_utils.continue_operation(&context_lines)? {
                 continue;
             }
             break;
@@ -147,9 +147,7 @@ async fn main() -> Result<()> {
                 &resolved_errors.retry_files,
             )?;
             if no_conflicts_left {
-                if args.continue_op {
-                    repeat = git_utils.continue_operation(&context_lines)?;
-                }
+                repeat = git_utils.continue_operation(&context_lines)?;
             } else {
                 repeat = true;
             }

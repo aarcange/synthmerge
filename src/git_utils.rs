@@ -1164,14 +1164,20 @@ impl GitUtils {
 
         assert_eq!(self.in_rebase, operation.command == "rebase");
 
+        // Always delete unmerged files if any before continuing
+        self.git_add_delete_unmerged()?;
+
+        // Check continue_op immediately after git_add_delete_unmerged so
+        // unmerged files are handled even when not continuing the operation.
+        if !self.continue_op {
+            return Ok(false);
+        }
+
         // Restore context lines before continuing
         self.restore_context_lines(context_lines);
 
         // Reset git_utils
         self.retries = 0;
-
-        // Always delete unmerged files if any before continuing
-        self.git_add_delete_unmerged()?;
 
         // Function to commit and continue operation
         let merge_msg_path = self.get_merge_msg_path(&git_dir);
@@ -1579,16 +1585,19 @@ impl GitUtils {
                                 ));
                             }
                             self.unresolved_deleted_files.insert(path.to_string());
+                            self.assisted = true;
                         } else if c0 == Some('U') && c1 == Some('A') {
                             let path = parts[10];
                             self.git_update_index(Some(path))?;
                             self.unresolved_added_files.insert(path.to_string());
+                            self.assisted = true;
                         } else if c0 == Some('A') && c1 == Some('A') {
                             let path = parts[10];
 
                             // Checkout the file from the current branch if it already exists
                             self.git_checkout("HEAD", path)?;
                             self.unresolved_added_files.insert(path.to_string());
+                            self.assisted = true;
                         }
                     }
                 }
@@ -1779,7 +1788,6 @@ impl GitUtils {
         }
 
         if files_status {
-            assert!(self.continue_op);
             let file_lists = [
                 ("Resolved", &mut self.resolved_files),
                 ("Unresolved", &mut self.unresolved_files),
