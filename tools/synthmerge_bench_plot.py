@@ -11,15 +11,17 @@ import os
 # 1. Data Definition
 # Format: List of model names
 models = [
+    "DeepSeek-V4.1-Flash-1017 (high, temp 0) {0.4.1}",
+    "DeepSeek-V4.1-Flash-1017 (max, temp 0) {0.4.1}",
     "Gemini 3.8 Flash (medium) {0.3.16}",
     "Gemini 3.7 Flash (medium)",
     "Gemini 3.6 Flash (medium)",
     "Gemini 3.5 Flash (medium)",
-    "Gemini 3 Flash (none default)",
-    "Gemini 2.5 Flash (none default)",
+    "Gemini 3 Flash (none)",
+    "Gemini 2.5 Flash (none)",
     # "Gemini 2.5 Flash (none no_diff)",
     "Gemini 2.5 Flash (low userctx)",
-    # "Gemini 2.5 Flash (low default)",
+    # "Gemini 2.5 Flash (low)",
     "gpt-6.1-sol (xhigh) {0.3.16}",
     "gpt-6.1-sol (high) {0.3.16}",
     "gpt-6-astra (xhigh) {0.3.16}",
@@ -34,7 +36,7 @@ models = [
     "Claude Opus 4.8 (adaptive)",
     "Claude Opus 4.7 (adaptive)",
     "Claude Opus 4.6 (adaptive)",
-    "Gemini 3.1 Pro (high default)",
+    "Gemini 3.1 Pro (high)",
     "Gemini 2.5 Pro (low userctx)",
     # "Gemini 2.5 Pro (high)",
     "Patchpal AI 7B #0",
@@ -49,7 +51,7 @@ models = [
     "Qwen3.5-9B-UD-Q8_K_XL (gbnf)",
     # "Qwen3-Coder-30B-A3B-Instruct-Q6_K (default)",
     # "Qwen3-Coder-Next-UD-Q6_K_XL (default)",
-    "GML 5.3 (high) {0.3.16}",
+    "GLM 5.3 (high) {0.3.16}",
     "Devstral-Small-2-24B-Instruct-2512-UD-Q6_K_XL (default)",
 ]
 
@@ -197,6 +199,80 @@ add_labels(bars1)
 add_labels(bars2)
 add_labels(bars3)
 add_labels(bars4)
+
+# Shared arrow properties so the arrows above the bars and the arrow
+# in the legend are drawn identically
+open_source_arrowprops = dict(
+    arrowstyle="->",
+    color="green",
+    lw=2,
+    mutation_scale=10,
+    shrinkA=2,
+    shrinkB=2,
+)
+# Arrow length in points (same as the annotation xytext offset)
+open_source_arrow_length = 20
+
+
+def is_open_source(model_name):
+    """Check if the model is an open source model."""
+    open_source_keywords = ["qwen", "deepseek", "glm", "devstral"]
+    lower_name = model_name.lower()
+    return any(keyword in lower_name for keyword in open_source_keywords)
+
+
+# Mark open source models with a green arrow above the chart pointing down
+open_source_indices = [i for i, m in enumerate(models) if is_open_source(m)]
+if open_source_indices:
+    for i in open_source_indices:
+        max_height = max(
+            accuracy[i], accuracy_aligned[i], accuracy_stripped[i], error_rate[i]
+        )
+        ax.annotate(
+            "",
+            xy=(i, max_height + 5),
+            xytext=(0, open_source_arrow_length),
+            textcoords="offset points",
+            arrowprops=open_source_arrowprops,
+            annotation_clip=False,
+        )
+
+# Add legend entry for open source models
+from matplotlib.legend_handler import HandlerBase
+from matplotlib.patches import FancyArrowPatch
+
+
+class OpenSourceArrow:
+    """Proxy artist for the open source legend entry."""
+
+
+class HandlerOpenSourceArrow(HandlerBase):
+    """Draw the same downward FancyArrowPatch used above the bars."""
+
+    def create_artists(
+        self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans
+    ):
+        x = -xdescent + width / 2
+        y_center = -ydescent + height / 2
+        half = open_source_arrow_length / 2
+        arrow = FancyArrowPatch(
+            (x, y_center + half),
+            (x, y_center - half),
+            **open_source_arrowprops,
+        )
+        arrow.set_transform(trans)
+        return [arrow]
+
+
+handles, labels = ax.get_legend_handles_labels()
+handles.insert(0, OpenSourceArrow())
+labels.insert(0, "Open Weight Open Source")
+ax.legend(
+    handles=handles,
+    labels=labels,
+    loc="best",
+    handler_map={OpenSourceArrow: HandlerOpenSourceArrow()},
+)
 
 # Adjust layout to prevent label cutoff
 plt.tight_layout()
