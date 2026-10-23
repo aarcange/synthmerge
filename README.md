@@ -402,7 +402,7 @@ The following statistics were generated using the `synthmerge_bench` tool on a C
 
 This measurement used only new test data never exposed to the model during the fine tuning process.
 
-![Benchmark Results](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge_bench-20261007.jpg)
+![Benchmark Results](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge_bench-20261029.jpg)
 
 ### The Numbers
 
@@ -478,6 +478,16 @@ Model: gpt-5.5 (high)
   Average tokens: 4817.62
   Average duration: 9.60 s
 
+# temperature: 0 reasoning_effort: max
+Model: DeepSeek-V4.1-Flash-1017 (max, temp 0) {0.4.1}
+  Accuracy: 70.24% (793/1129)
+  Accuracy (aligned): 74.40% (840/1129)
+  Accuracy (stripped): 77.86% (879/1129)
+  Error Rate: 0.09% (1/1129)
+  Average input tokens: 4684.60
+  Average output tokens: 4220.18
+  Average duration: 56.28 s
+
 Model: gpt-5.6-sol (xhigh) {0.3.16}
   Accuracy: 70.06% (791/1129)
   Accuracy (aligned): 73.78% (833/1129)
@@ -511,7 +521,7 @@ Model: gpt-5.5 (medium)
   Average tokens: 4469.82
   Average duration: 5.64 s
 
-Model: Gemini 3.1 Pro (high default) # reasoning_effort: high
+Model: Gemini 3.1 Pro (high) # reasoning_effort: high
   Accuracy: 69.35% (783/1129)
   Accuracy (aligned): 73.25% (827/1129)
   Accuracy (stripped): 76.53% (864/1129)
@@ -576,6 +586,16 @@ Model: gpt-6.1-sol (high) {0.3.16}
   Average output tokens: 244.17
   Average duration: 6.89 s
 
+# temperature: 0 reasoning_effort: high
+Model: DeepSeek-V4.1-Flash-1017 (high, temp 0) {0.4.1}
+  Accuracy: 68.02% (768/1129)
+  Accuracy (aligned): 71.21% (804/1129)
+  Accuracy (stripped): 74.40% (840/1129)
+  Error Rate: 0.00% (0/1129)
+  Average input tokens: 4691.05
+  Average output tokens: 3387.78
+  Average duration: 19.26 s
+
 Model: gpt-5.6-sol (low)
   Accuracy: 67.94% (767/1129)
   Accuracy (aligned): 71.57% (808/1129)
@@ -593,7 +613,7 @@ Model: gpt-6-astra (xhigh) {0.3.16}
   Average output tokens: 405.50
   Average duration: 10.31 s
 
-Model: Gemini 3.5 Flash (high default) # reasoning_effort: high
+Model: Gemini 3.5 Flash (high) # reasoning_effort: high
   Accuracy: 67.76% (765/1129)
   Accuracy (aligned): 74.05% (836/1129)
   Accuracy (stripped): 77.33% (873/1129)
@@ -601,7 +621,7 @@ Model: Gemini 3.5 Flash (high default) # reasoning_effort: high
   Average tokens: 8575.48
   Average duration: 15.77 s
 
-Model: Gemini 3.1 Pro (low default) # reasoning_effort: low
+Model: Gemini 3.1 Pro (low) # reasoning_effort: low
   Accuracy: 67.67% (764/1129)
   Accuracy (aligned): 71.39% (806/1129)
   Accuracy (stripped): 74.84% (845/1129)
@@ -638,7 +658,7 @@ Model: Claude Opus 4.7 (adaptive) # thinking adaptive
   Average tokens: 7508.22
   Average duration: 5.87 s
 
-Model: Gemini 3.5 Flash (none default) # reasoning_effort: none
+Model: Gemini 3.5 Flash (none) # reasoning_effort: none
   Accuracy: 66.96% (756/1129)
   Accuracy (aligned): 72.19% (815/1129)
   Accuracy (stripped): 75.29% (850/1129)
@@ -662,7 +682,7 @@ Model: Claude Sonnet 4.0 (default)
   Average tokens: 5730.47
   Average duration: 7.03 s
 
-Model: Gemini 3.5 Flash (low default) # reasoning_effort: low
+Model: Gemini 3.5 Flash (low) # reasoning_effort: low
   Accuracy: 66.61% (752/1129)
   Accuracy (aligned): 73.43% (829/1129)
   Accuracy (stripped): 76.62% (865/1129)
@@ -751,7 +771,7 @@ Model: Qwen3.5-27B-UD-Q6_K_XL (gbnf)
   Average prob (aligned): 13.8% (+- 34.3)
   Average prob (correct): 17.1% (+- 33.9)
 
-Model: Gemini 3 Flash (none default) # reasoning_effort: none
+Model: Gemini 3 Flash (none) # reasoning_effort: none
   Accuracy: 64.13% (724/1129)
   Accuracy (aligned): 70.59% (797/1129)
   Accuracy (stripped): 73.43% (829/1129)
@@ -830,7 +850,7 @@ Model: Claude Opus 4.8 (default)
   Average tokens: 7132.77
   Average duration: 3.47 s
 
-Model: Gemini 3.1 Flash Lite (none default) # reasoning_effort: none
+Model: Gemini 3.1 Flash Lite (none) # reasoning_effort: none
   Accuracy: 57.93% (654/1129)
   Accuracy (aligned): 65.90% (744/1129)
   Accuracy (stripped): 69.71% (787/1129)
@@ -995,7 +1015,7 @@ Model: Qwen3-Coder-30B-A3B-Instruct-Q6_K (default)
   Average prob (aligned): 58.0% (+- 27.2)
   Average prob (correct): 61.6% (+- 25.9)
 
-Model: Gemini 2.5 Flash (none default) # reasoning_effort: none
+Model: Gemini 2.5 Flash (none) # reasoning_effort: none
   Accuracy: 49.60% (560/1129)
   Accuracy (aligned): 60.41% (682/1129)
   Accuracy (stripped): 63.42% (716/1129)
@@ -1072,7 +1092,7 @@ Model: Patchpal AI 7B (#1)
   Average prob (aligned): 55.1% (+- 23.1)
   Average prob (correct): 73.0% (+- 14.1)
 
-Model: Gemini 2.5 Flash (low default) # reasoning_effort: low
+Model: Gemini 2.5 Flash (low) # reasoning_effort: low
   Accuracy: 7.97% (90/1129)
   Accuracy (aligned): 9.57% (108/1129)
   Accuracy (stripped): 10.27% (116/1129)
