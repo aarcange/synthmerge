@@ -390,15 +390,6 @@ A Fedora Copr package is available:
 
 ---
 
-## 🎥 Demo
-
-> ![synthmerge-demo backtest_stable](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.27-backtest_stable.webm)
-> ![synthmerge-demo vibe](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.27-vibe.webm)
-> ![synthmerge-demo](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8.webm)
-> ![synthmerge-demo with ripgrep-edit](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-ripgrep-edit.webm)
-> ![synthmerge-demo with vim](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-vim.webm)
----
-
 ## 📊 Benchmark Statistics
 
 The following statistics were generated using the `synthmerge_bench` tool on a C language dataset to evaluate model performance on conflict resolution tasks. These results may vary depending on prompt, context, and other variables. 
@@ -1123,28 +1114,16 @@ Model: Qwen3-Coder-30B-A3B-Instruct (default#2) # perplexity beam #2
 
 ---
 
-## 📊 Benchmark Aggregate Accuracy
+## 🎥 Demo
 
-**Aggregate accuracy** represents the combined performance when multiple models/variants/beams are used in parallel: a conflict in this case is considered successfully resolved if *at least one* model/variant/beam produces a correct solution.
-
-| Configuration | Accuracy | Accuracy (aligned) | Accuracy (stripped) |
-|---------------|----------|--------------------|---------------------|
-| `Qwen3-Coder-30B` (default) | 49.69% | 54.21% | 56.78% |
-| `Qwen3-Coder-30B` (no_diff) | 46.94% | 51.02% | 53.76% |
-| **Aggregate: `Qwen3-Coder-30B` (default + no_diff)** | **55.80%** | **60.50%** | **63.33%** |
-| **(Perplexity) beams added to `Qwen3-Coder-30B`** | **63.24%** | **69.18%** | **71.83%** |
-| `Claude Sonnet 4.0` (default) | 66.70% | 70.42% | 73.34% |
-| **`Qwen3-Coder-30B` + `Claude Sonnet 4.0`** | **75.02%** | **78.39%** | **80.96%** |
-| `Gemini 2.5 Flash` (none) | 49.60% | 60.41% | 63.42% |
-| `Gemini 2.5 Pro` (low) | 52.44% | 56.95% | 59.70% |
-| **`Qwen3-Coder-30B + beams` + `Claude Sonnet 4.0` + `Gemini 2.5 Flash` + `Gemini 2.5 Pro`** | **79.98%** | **82.82%** | **84.68%** |
-| `Patchpal AI` (Beam 0) | 64.57% | 68.47% | 71.12% |
-| **Aggregate: Patchpal AI (3 beams)** | **78.39%** | **81.05%** | **82.46%** |
-| ✅ **All models + all variants + all beams** | **84.85%** | **87.51%** | **88.66%** |
+> ![synthmerge-demo backtest_stable](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.27-backtest_stable.webm)
+> ![synthmerge-demo vibe](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.27-vibe.webm)
+> ![synthmerge-demo](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8.webm)
+> ![synthmerge-demo with ripgrep-edit](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-ripgrep-edit.webm)
+> ![synthmerge-demo with vim](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge-demo-0.1.8-vim.webm)
 
 ---
 
 ## License
 
-[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html)
-[![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](https://www.gnu.org/licenses/agpl-3.0.html)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.html) ![OR](https://img.shields.io/badge/OR-lightgrey.svg) [![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](https://www.gnu.org/licenses/agpl-3.0.html)
