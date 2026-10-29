@@ -2,6 +2,7 @@
 // Copyright (C) 2025-2026  Red Hat, Inc.
 
 use crate::conflict_resolver::{CommitType, Conflict, ConflictResolver, ResolvedConflict};
+use crate::git_command::GitCommand;
 use crate::lmdb_cache::{LmdbCacheImpl, PatchLocatorCache};
 use crate::patch_locator::PatchLocator;
 use crate::prob;
@@ -12,7 +13,6 @@ use std::fs;
 use std::fs::{OpenOptions, Permissions};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy)]
@@ -30,61 +30,12 @@ pub struct OperationHead {
     pub path: PathBuf,
 }
 
-// Wrapper around Command to allow inheritance-like behavior
-pub struct GitCommand {
-    command: Command,
-    verbose: bool,
-}
-
 /// Remove conflict markers from content
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum ConflictMarkerMode {
     Local,
     Base,
     Remote,
-}
-
-impl GitCommand {
-    pub fn new(program: &str) -> Self {
-        let cmd = Command::new(program);
-        GitCommand {
-            command: cmd,
-            verbose: true,
-        }
-    }
-
-    pub fn args<I, S>(&mut self, args: I) -> &mut Self
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<std::ffi::OsStr>,
-    {
-        self.command.args(args);
-        self
-    }
-
-    pub fn verbose(&mut self, verbose: bool) -> &mut Self {
-        self.verbose = verbose;
-        self
-    }
-
-    pub fn output(&mut self) -> Result<std::process::Output> {
-        let program = self.command.get_program().to_string_lossy().into_owned();
-        let args: Vec<_> = self.command.get_args().collect();
-        let args_str = args
-            .iter()
-            .map(|arg| arg.to_string_lossy())
-            .collect::<Vec<_>>()
-            .join(" ");
-        let output = self.command.output().context("Failed to execute command")?;
-        if self.verbose {
-            log::debug!("GitCommand: {program} {args_str} {{{}}}", output.status);
-            if !output.status.success() {
-                log::debug!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-                log::debug!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-            }
-        }
-        Ok(output)
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

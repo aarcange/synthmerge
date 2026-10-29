@@ -11,6 +11,7 @@ mod api_client;
 mod config;
 mod conflict_resolver;
 mod gcp_auth;
+mod git_command;
 mod git_utils;
 mod lmdb_cache;
 mod lmdb_cache_main;
