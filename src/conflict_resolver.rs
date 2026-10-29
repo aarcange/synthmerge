@@ -3,8 +3,8 @@
 
 use crate::api_client::{ApiClient, ApiRequest, ApiResponse};
 use crate::config::{Config, EndpointConfig, EndpointTypeConfig};
+use crate::hunk::Hunk;
 use crate::lmdb_cache::{ApiCache, LmdbCacheImpl};
-use crate::patch_locator::Hunk;
 use crate::prob;
 use anyhow::Result;
 use futures::future::select_all;

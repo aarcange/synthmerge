@@ -14,6 +14,7 @@ mod fast_search;
 mod gcp_auth;
 mod git_command;
 mod git_utils;
+mod hunk;
 mod lmdb_cache;
 mod lmdb_cache_main;
 mod logger;

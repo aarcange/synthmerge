@@ -10,6 +10,7 @@ mod fast_search;
 mod gcp_auth;
 mod git_command;
 pub mod git_utils;
+mod hunk;
 mod lmdb_cache;
 pub mod logger;
 mod patch_locator;
