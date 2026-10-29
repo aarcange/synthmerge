@@ -55,8 +55,8 @@ struct ConflictOffsets {
 pub struct GitUtils {
     context_lines: ContextLines,
     in_rebase: bool,
-    git_root: Option<String>,
-    git_dir: Option<String>,
+    git_root: String,
+    git_dir: String,
     blob_cache: HashMap<String, Arc<String>>,
     lmdb_cache: Option<Arc<LmdbCacheImpl>>,
     resolution_mode: ResolutionMode,
@@ -91,8 +91,8 @@ impl GitUtils {
         continue_op: bool,
         allow_empty: bool,
     ) -> Self {
-        let git_root = Self::get_git_root_uncached().ok();
-        let git_dir = Self::get_git_dir_uncached().ok();
+        let git_root = Self::get_git_root_uncached().expect("Failed to get git root directory");
+        let git_dir = Self::get_git_dir_uncached().expect("Failed to get git directory");
         let lmdb_cache = cache_path.map(|path| {
             Arc::new(
                 PatchLocatorCache::create_from_path(&path, cache_overwrite)
@@ -202,7 +202,7 @@ impl GitUtils {
 
     /// Run git status --porcelain=v2 -z
     fn git_status_porcelain_v2(&self, path: Option<&str>) -> Result<std::process::Output> {
-        let git_root = self.git_root.as_ref().unwrap();
+        let git_root = &self.git_root;
         let mut args = vec!["-C", git_root, "status", "--porcelain=v2", "-z"];
         if let Some(p) = path {
             args.push("--");
@@ -269,7 +269,7 @@ impl GitUtils {
 
                     let marker_size = self.get_marker_size_for_file(&file_path)?;
 
-                    let path = Path::new(self.git_root.as_ref().unwrap()).join(&file_path);
+                    let path = Path::new(&self.git_root).join(&file_path);
                     let merged_content = Arc::new(
                         fs::read_to_string(&path)
                             .context(format!("Failed to read file: {}", file_path))?,
@@ -449,7 +449,7 @@ impl GitUtils {
     /// Get the content of a git blob.
     /// Returns None if the blob exists but it's empty.
     fn get_blob_content(&self, blob_hash: &str) -> Result<Option<String>> {
-        let git_root = self.git_root.as_ref().unwrap();
+        let git_root = &self.git_root;
         let output = GitCommand::new("git")
             .args(["-C", git_root, "show", blob_hash])
             .output()
@@ -731,7 +731,7 @@ impl GitUtils {
         let output = GitCommand::new("git")
             .args([
                 "-C",
-                self.git_root.as_ref().unwrap(),
+                &self.git_root,
                 "check-attr",
                 "conflict-marker-size",
                 "--",
@@ -898,8 +898,7 @@ impl GitUtils {
             assert!(conflict.conflict.commit_type == CommitType::Conflict);
 
             // Read the file
-            let path =
-                Path::new(self.git_root.as_ref().unwrap()).join(&conflict.conflict.file_path);
+            let path = Path::new(&self.git_root).join(&conflict.conflict.file_path);
             let content = fs::read_to_string(&path)
                 .with_context(|| format!("Failed to read file: {}", conflict.conflict.file_path))?;
             // Split content into lines
@@ -1012,7 +1011,7 @@ impl GitUtils {
 
             if let Some(content) = updated_content {
                 // Write back to file
-                let path = Path::new(self.git_root.as_ref().unwrap()).join(file_path);
+                let path = Path::new(&self.git_root).join(file_path);
 
                 fs::write(&path, content.join(""))
                     .with_context(|| format!("Failed to write file: {}", file_path))?;
@@ -1114,7 +1113,7 @@ impl GitUtils {
 
     /// Continue the current cherry-pick, rebase, revert, or merge operation
     pub fn continue_operation(&mut self, context_lines: &ContextLines) -> Result<bool> {
-        let git_dir = self.git_dir.as_ref().unwrap().clone();
+        let git_dir = self.git_dir.clone();
 
         // Check if we're in a cherry-pick, rebase, revert, or merge
         let operation = match self.find_operation_head(&git_dir)? {
@@ -1635,7 +1634,7 @@ impl GitUtils {
 
     /// Check if cherry-pick was run without -x
     fn check_cherry_pick_x(&mut self, merge_msg_content: &str) -> Result<()> {
-        let operation = self.find_operation_head(self.git_dir.as_ref().unwrap())?;
+        let operation = self.find_operation_head(&self.git_dir)?;
         if let Some(op) = operation {
             if op.command != "cherry-pick" {
                 return Ok(());
@@ -1690,7 +1689,7 @@ impl GitUtils {
             return Ok(());
         }
 
-        let merge_msg_path = self.get_merge_msg_path(self.git_dir.as_ref().unwrap());
+        let merge_msg_path = self.get_merge_msg_path(&self.git_dir);
         let merge_msg_content = match fs::read_to_string(&merge_msg_path) {
             Ok(content) => content,
             Err(_) => {
@@ -1798,10 +1797,7 @@ impl GitUtils {
 
     /// Check if we are currently in a cherry-pick, merge, or rebase state
     pub fn find_commit_hash(&mut self) -> Result<Option<String>> {
-        let git_dir = self
-            .git_dir
-            .as_ref()
-            .context("Not running in a git repository")?;
+        let git_dir = &self.git_dir;
 
         // Check for cherry-pick, merge, and rebase HEAD files
         let operation = self.find_operation_head(git_dir)?;
@@ -1873,12 +1869,12 @@ impl GitUtils {
 
     /// Extract the patch from a specific commit hash
     pub fn extract_diff(
-        &self,
         commit_hash: &str,
         max_context_size: u32,
         dir: Option<&str>,
+        context_lines: &ContextLines,
     ) -> Result<Option<String>> {
-        let diff = self.git_show_in_dir(commit_hash, dir, None)?;
+        let diff = Self::git_show_in_dir(commit_hash, dir, None, context_lines)?;
         Ok(diff.and_then(|d| {
             if d.len() <= max_context_size.try_into().unwrap() {
                 let lines = d.split_inclusive('\n').collect::<Vec<_>>();
@@ -1951,12 +1947,12 @@ impl GitUtils {
 
     /// Extract the patch from a specific commit hash
     fn git_show_in_dir(
-        &self,
         commit_hash: &str,
         dir: Option<&str>,
         filename: Option<&str>,
+        context_lines: &ContextLines,
     ) -> Result<Option<String>> {
-        let diff_context_lines = &format!("-U{}", self.context_lines.diff_context_lines);
+        let diff_context_lines = &format!("-U{}", context_lines.diff_context_lines);
         let dir = if let Some(directory) = dir {
             shellexpand::tilde(directory).to_string()
         } else {

@@ -4,7 +4,7 @@
 use crate::bench_args::BenchArgs;
 use crate::config::{Config, EndpointTypeConfig};
 use crate::conflict_resolver::{Conflict, ConflictResolver};
-use crate::git_utils::{ContextLines, GitUtils, ResolutionMode};
+use crate::git_utils::{ContextLines, GitUtils};
 use crate::prob::logprob_to_prob;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -518,17 +518,6 @@ impl Bench {
             extra_conflict_lines: 0,
         };
 
-        // Create a new GitUtils instance to find the commit hash
-        let git_utils = GitUtils::new(
-            context_lines,
-            args.get_cache_path(),
-            args.cache_overwrite,
-            ResolutionMode::Interactive,
-            0,
-            false,
-            false,
-        );
-
         // Load existing checkpoint
         self.load_checkpoint(&args)?;
         println!(
@@ -587,10 +576,10 @@ impl Bench {
                 None => {
                     self.git_diffs.clear();
                     let diff = self.git_show_dirs(
-                        &git_utils,
                         &args.git_directories,
                         &entry.patch_commit_hash,
                         args.max_context_size,
+                        &context_lines,
                     )?;
                     self.git_diffs
                         .insert(entry.patch_commit_hash.clone(), diff.clone());
@@ -760,14 +749,14 @@ impl Bench {
 
     fn git_show_dirs(
         &self,
-        git_utils: &GitUtils,
         dirs: &[String],
         commit_hash: &str,
         max_context_size: u32,
+        context_lines: &ContextLines,
     ) -> Result<Option<String>> {
         let mut last_error = None;
         for dir in dirs {
-            match git_utils.extract_diff(commit_hash, max_context_size, Some(dir)) {
+            match GitUtils::extract_diff(commit_hash, max_context_size, Some(dir), context_lines) {
                 Ok(diff) => return Ok(diff),
                 Err(error) => last_error = Some(error),
             }
