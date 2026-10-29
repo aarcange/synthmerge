@@ -6,6 +6,7 @@ pub mod bench;
 pub mod bench_args;
 pub mod config;
 pub mod conflict_resolver;
+mod fast_search;
 mod gcp_auth;
 mod git_command;
 pub mod git_utils;

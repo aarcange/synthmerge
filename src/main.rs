@@ -10,6 +10,7 @@ use clap::Parser;
 mod api_client;
 mod config;
 mod conflict_resolver;
+mod fast_search;
 mod gcp_auth;
 mod git_command;
 mod git_utils;

@@ -2,6 +2,7 @@
 // Copyright (C) 2026  Red Hat, Inc.
 
 use crate::conflict_resolver::{CommitType, Conflict, ResolvedConflict, Snippet};
+use crate::fast_search::*;
 use crate::git_utils::ContextLines;
 use crate::lmdb_cache::{LmdbCacheImpl, PatchLocatorCache};
 use anyhow::Result;
@@ -10,26 +11,6 @@ use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 use textdistance::nstr;
-
-/// Convert a byte offset to a line number (0-based)
-fn bytes_to_lines(bytes: &[u8], offset: usize) -> usize {
-    memchr::memchr_iter(b'\n', &bytes[..offset.min(bytes.len())]).count()
-}
-
-/// Convert a line number (0-based) to a byte offset
-fn _lines_to_bytes(bytes: &[u8], line: usize) -> usize {
-    if line == 0 {
-        return 0;
-    }
-    let mut count = 0;
-    for pos in memchr::memchr_iter(b'\n', bytes) {
-        count += 1;
-        if count == line {
-            return pos + 1;
-        }
-    }
-    bytes.len()
-}
 
 /// Represents a single hunk from a git diff
 #[derive(Clone, PartialEq)]
@@ -687,34 +668,6 @@ impl PatchLocator {
         Ok(hunks)
     }
 
-    fn fast_search(snippet: &[u8], local_bytes: &[u8]) -> Option<usize> {
-        if snippet.len() > local_bytes.len() {
-            return None;
-        }
-
-        let mut matches = 0;
-        let mut first_start = 0;
-
-        for start in memchr::memmem::find_iter(local_bytes, snippet) {
-            if start > 0 && local_bytes[start - 1] != b'\n' {
-                continue;
-            }
-            matches += 1;
-            if matches == 1 {
-                first_start = start;
-            } else {
-                // Multiple matches found
-                return None;
-            }
-        }
-
-        if matches == 1 {
-            Some(first_start)
-        } else {
-            None
-        }
-    }
-
     fn is_conflict(
         &self,
         hunk: &Hunk,
@@ -862,10 +815,11 @@ impl PatchLocator {
         let merged_local = &self.merged_local_content;
         let merged_local_b = merged_local.as_bytes();
 
-        if let Some(start) = Self::fast_search(remote.as_bytes(), merged_local_b)
-            && let Some(_) = Self::fast_search(base.as_bytes(), local_b)
+        if let FastSearchResult::Found(offsets) = fast_search(remote.as_bytes(), merged_local_b, 1)
+            && let FastSearchResult::Found(_) = fast_search(base.as_bytes(), local_b, 1)
         {
-            let local_start = bytes_to_lines(merged_local_b, start) + hunk.get_head_context().len();
+            let local_start =
+                bytes_to_lines(merged_local_b, offsets[0]) + hunk.get_head_context().len();
             let local_end = local_start + hunk.get_conflict_remote()?.len();
 
             let extra_conflict_lines = self.context_lines.extra_conflict_lines as usize;
