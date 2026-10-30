@@ -9,7 +9,7 @@ use crate::prob;
 use anyhow::Result;
 use futures::future::select_all;
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -165,7 +165,7 @@ impl<'a> ConflictResolver<'a> {
     /// Resolve all conflicts using AI
     pub async fn resolve_conflicts(
         self,
-        conflicts: &[Conflict],
+        conflicts: &BTreeMap<String, Vec<Conflict>>,
         prev_resolved_conflicts: &[ResolvedConflict],
     ) -> Result<(Vec<ResolvedConflict>, ResolverErrors)> {
         let config = &self.config;
@@ -176,7 +176,8 @@ impl<'a> ConflictResolver<'a> {
             retry_files: HashSet::new(),
         };
 
-        for (conflict_index, conflict) in conflicts.iter().enumerate() {
+        let nr_conflicts: usize = conflicts.values().map(|c| c.len()).sum();
+        for (conflict_index, conflict) in conflicts.values().flatten().enumerate() {
             // Check if we have a previous resolved conflict that matches this one
             let mut skip_ai_resolution = false;
             for prev_conflict in prev_resolved_conflicts {
@@ -192,7 +193,7 @@ impl<'a> ConflictResolver<'a> {
                 let conflict_info = format!(
                     "Skipping resolved conflict {} of {} in {}:{}->{}",
                     conflict_index + 1,
-                    conflicts.len(),
+                    nr_conflicts,
                     conflict.file_path,
                     conflict.start_line,
                     conflict.local_start
@@ -204,7 +205,7 @@ impl<'a> ConflictResolver<'a> {
                 let conflict_info = format!(
                     "Resolving conflict {} of {} in {}:{}->{}",
                     conflict_index + 1,
-                    conflicts.len(),
+                    nr_conflicts,
                     conflict.file_path,
                     conflict.start_line,
                     conflict.local_start

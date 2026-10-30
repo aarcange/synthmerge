@@ -6,6 +6,7 @@ use crate::config::{Config, EndpointConfig, EndpointTypeConfig};
 use crate::conflict_resolver::{Conflict, ResolvedConflict};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -27,7 +28,7 @@ pub struct Telemetry {
 impl Telemetry {
     pub fn new(
         config: &Config,
-        conflicts: &[Conflict],
+        conflicts: &BTreeMap<String, Vec<Conflict>>,
         resolved_conflicts: &[ResolvedConflict],
     ) -> Self {
         let endpoints = config.get_all_endpoints();
@@ -63,7 +64,7 @@ impl Telemetry {
                     .collect(),
                 version: concat!(env!("CARGO_PKG_NAME"), "-", env!("CARGO_PKG_VERSION"))
                     .to_string(),
-                nr_conflicts: conflicts.len(),
+                nr_conflicts: conflicts.values().map(|c| c.len()).sum(),
                 nr_resolved_conflicts: resolved_conflicts
                     .iter()
                     .map(|c| c.deduplicated_conflicts.len().max(1))

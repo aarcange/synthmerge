@@ -8,7 +8,7 @@ use crate::git_utils::{ContextLines, GitUtils};
 use crate::prob::logprob_to_prob;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::path::Path;
 
@@ -602,7 +602,9 @@ impl Bench {
                 false,
             );
 
-            let resolved_conflicts = resolver.resolve_conflicts(&[conflict], &Vec::new()).await;
+            let conflicts = BTreeMap::from([(conflict.file_path.clone(), vec![conflict])]);
+
+            let resolved_conflicts = resolver.resolve_conflicts(&conflicts, &[]).await;
             let resolved_conflicts = match resolved_conflicts {
                 Ok((resolved_conflicts, resolved_errors)) => {
                     assert!(!(resolved_conflicts.is_empty() && resolved_errors.errors.is_empty()));

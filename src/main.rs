@@ -126,7 +126,8 @@ async fn main() -> Result<()> {
             break;
         }
 
-        println!("Found {} conflicts to resolve", conflicts.len());
+        let nr_conflicts: usize = conflicts.values().map(|c| c.len()).sum();
+        println!("Found {} conflicts to resolve", nr_conflicts);
 
         // Resolve conflicts using AI
         let resolver = ConflictResolver::new(

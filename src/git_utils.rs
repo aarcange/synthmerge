@@ -8,7 +8,7 @@ use crate::patch_locator::PatchLocator;
 use crate::prob;
 use anyhow::{Context, Result};
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::fs::{OpenOptions, Permissions};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
@@ -244,7 +244,7 @@ impl GitUtils {
         &mut self,
         max_context_size: u32,
         prev_conflicts: &[ResolvedConflict],
-    ) -> Result<Vec<Conflict>> {
+    ) -> Result<BTreeMap<String, Vec<Conflict>>> {
         // Run git status --porcelain=v2 -z to get blob hashes
         let output = self.git_status_porcelain_v2(None)?;
 
@@ -252,7 +252,7 @@ impl GitUtils {
         let status_output_bytes = &output.stdout;
         let lines = status_output_bytes.split(|&b| b == b'\0').peekable();
 
-        let mut all_conflicts: Vec<Conflict> = Vec::new();
+        let mut all_conflicts: BTreeMap<String, Vec<Conflict>> = BTreeMap::new();
         for line_bytes in lines {
             let line = String::from_utf8_lossy(line_bytes);
             // Skip header lines
@@ -409,7 +409,7 @@ impl GitUtils {
                     // Replace solved conflicts with previous ones if hunks are identical
                     Self::replace_solved_conflicts(&mut conflicts, prev_conflicts);
 
-                    all_conflicts.extend(conflicts);
+                    all_conflicts.insert(file_path, conflicts);
                 }
             }
         }
@@ -964,7 +964,7 @@ impl GitUtils {
     /// Apply vibe resolution - fully resolve conflicts and update git index
     pub fn apply_vibe_resolution(
         &mut self,
-        conflicts: &[Conflict],
+        conflicts: &BTreeMap<String, Vec<Conflict>>,
         resolved_conflicts: &[ResolvedConflict],
         retry_files: &HashSet<String>,
     ) -> Result<bool> {
@@ -977,24 +977,11 @@ impl GitUtils {
         //     resolved_conflicts.pop();
         // }
 
-        // Group conflicts by file
-        let mut conflicts_by_file = std::collections::HashMap::new();
-        for conflict in conflicts {
-            conflicts_by_file
-                .entry(&conflict.file_path)
-                .or_insert_with(Vec::new)
-                .push(conflict);
-        }
-
-        let mut sorted_files: Vec<_> = conflicts_by_file.keys().copied().collect();
-        sorted_files.sort();
-
         let mut needs_retry = false;
         let mut recoverable = true;
 
         // Process each file
-        for file_path in sorted_files {
-            let file_conflicts = &conflicts_by_file[file_path];
+        for (file_path, file_conflicts) in conflicts {
             if self.retries < self.max_retries && retry_files.contains(file_path) {
                 println!("Will retry file: {}", file_path);
                 needs_retry = true;
@@ -1003,7 +990,7 @@ impl GitUtils {
             println!("Processing file: {}", file_path);
 
             // Sort conflicts by start line (ascending)
-            let mut sorted_conflicts: Vec<&Conflict> = file_conflicts.to_vec();
+            let mut sorted_conflicts: Vec<&Conflict> = file_conflicts.iter().collect();
             sorted_conflicts.sort_by_key(|c| c.local_start);
 
             let updated_content =
@@ -1248,7 +1235,6 @@ impl GitUtils {
     }
 
     fn deduplicate_conflicts(conflicts: &[ResolvedConflict]) -> Vec<ResolvedConflict> {
-        use std::collections::HashMap;
         let mut map: HashMap<(String, usize, &str), Vec<&ResolvedConflict>> = HashMap::new();
 
         // Group conflicts by resolved_version, local_start and file_path
@@ -1408,7 +1394,6 @@ impl GitUtils {
     }
 
     fn combine_model_names(group: &[&ResolvedConflict]) -> String {
-        use std::collections::HashMap;
         let mut suffix_map: HashMap<String, Vec<String>> = HashMap::new();
         let mut prefixes = Vec::new();
 
