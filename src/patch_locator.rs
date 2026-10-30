@@ -65,8 +65,20 @@ impl PatchLocator {
         }
     }
 
+    /// Parses git diff output into a list of Hunk structures of
+    /// conflicting hunks
+    pub fn diff_to_hunks(&self, diff_output: &str) -> Result<Vec<Hunk>> {
+        self.diff_to_hunks_impl(diff_output, false)
+    }
+
+    /// Parses git diff output into a list of Hunk structures of
+    /// clean hunks
+    pub fn diff_to_clean_hunks(&self, diff_output: &str) -> Result<Vec<Hunk>> {
+        self.diff_to_hunks_impl(diff_output, true)
+    }
+
     /// Parses git diff output into a list of Hunk structures
-    pub fn diff_to_hunks(&self, diff_output: &str, clean: bool) -> Result<Vec<Hunk>> {
+    fn diff_to_hunks_impl(&self, diff_output: &str, clean: bool) -> Result<Vec<Hunk>> {
         let mut hunks = Vec::new();
         let mut header = String::new();
         let mut body_lines: Vec<String> = Vec::new();
@@ -677,7 +689,7 @@ impl PatchLocator {
                 Self::MARKERS_CONTEXT_LINES
             };
 
-            let hunks = self.diff_to_hunks(conflict.conflict_raw_patch.as_ref().unwrap(), false)?;
+            let hunks = self.diff_to_hunks(conflict.conflict_raw_patch.as_ref().unwrap())?;
             assert_eq!(hunks.len(), 1);
 
             let hunks: Vec<Hunk> = hunks
@@ -1282,7 +1294,7 @@ impl PatchLocator {
         range: std::ops::Range<usize>,
         reverse: bool,
     ) -> Result<bool> {
-        let hunks = self.diff_to_hunks(conflict.conflict_raw_patch.as_ref().unwrap(), false)?;
+        let hunks = self.diff_to_hunks(conflict.conflict_raw_patch.as_ref().unwrap())?;
         let mut lines = Vec::new();
         for hunk in &hunks {
             lines.extend(hunk.get_conflict_base()?);
@@ -1318,7 +1330,7 @@ impl PatchLocator {
         range: std::ops::Range<usize>,
         reverse: bool,
     ) -> Result<bool> {
-        let hunks = self.diff_to_hunks(conflict.conflict_raw_patch.as_ref().unwrap(), false)?;
+        let hunks = self.diff_to_hunks(conflict.conflict_raw_patch.as_ref().unwrap())?;
         let mut lines = Vec::new();
         for hunk in &hunks {
             lines.extend(hunk.get_conflict_remote()?);
@@ -1418,7 +1430,7 @@ impl PatchLocator {
         prev_conflicts: &[ResolvedConflict],
     ) -> Result<()> {
         assert!(!conflicts.is_empty());
-        let hunks = self.diff_to_hunks(&self.conflict_diff, false)?;
+        let hunks = self.diff_to_hunks(&self.conflict_diff)?;
         if hunks.is_empty() {
             anyhow::bail!("conflict_diff contains no hunks");
         }
@@ -1429,7 +1441,7 @@ impl PatchLocator {
 
         self.relocate_conflicts(conflicts, prev_conflicts)?;
 
-        let hunks = self.diff_to_hunks(&self.clean_diff, true)?;
+        let hunks = self.diff_to_clean_hunks(&self.clean_diff)?;
         if !hunks.is_empty() {
             self.process_clean_hunks(conflicts, &pre_relocation_conflicts, hunks)?;
         }
@@ -1807,7 +1819,11 @@ mod tests {
 
     fn parse_hunks(diff: &str, clean: bool) -> Vec<Hunk> {
         let locator = test_locator();
-        locator.diff_to_hunks(diff, clean).unwrap()
+        if clean {
+            locator.diff_to_clean_hunks(diff).unwrap()
+        } else {
+            locator.diff_to_hunks(diff).unwrap()
+        }
     }
 
     #[test]
