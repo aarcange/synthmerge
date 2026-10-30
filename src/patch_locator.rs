@@ -1147,7 +1147,7 @@ impl PatchLocator {
                 (None, conflict.local_start - prev_local_end)
             }
         };
-        let mut head_offset = offset + prev_local_end;
+        let head_offset = offset + prev_local_end;
         let max_context_distance = self.calc_max_context_distance(conflict, tail_context);
         let tail_result = Self::filter_distances(
             self.calc_distances(
@@ -1172,56 +1172,69 @@ impl PatchLocator {
                 (None, conflict.local_end - prev_local_end)
             }
         };
-        let mut tail_offset = offset + prev_local_end;
+        let tail_offset = offset + prev_local_end;
 
         if min_distance < f64::MAX {
             conflict.relocation_distance = Some(prev_distance.min(min_distance));
         }
 
         let head_context_len = head_context.len();
-        if let Some(head_distances) = head_distances
-            && let Some(tail_distances) = tail_distances
-            && head_offset > tail_offset
-        {
-            let mut min_sum = f64::MAX;
-            let mut best_head = 0;
-            let mut best_tail = 0;
+        // Without both contexts the conflict cannot be reliably
+        // relocated: the expected range would be arbitrary.
+        let (Some(head_distances), Some(tail_distances)) = (head_distances, tail_distances) else {
+            return Ok(false);
+        };
+        let best = if head_offset > tail_offset {
+            let min_len = expected_lines_min / Self::RELOCATE_BOTH_LENGTH_FACTOR;
+            let max_len = expected_lines_max * Self::RELOCATE_BOTH_LENGTH_FACTOR;
+
+            let mut best: Option<(f64, usize, usize)> = None;
             for (i, &hd) in head_distances.iter().enumerate() {
                 if hd == f64::MAX {
                     continue;
                 }
+                // head_distances[i] is the distance of the head
+                // context window starting at prev_local_end + i. The
+                // conflict starts right after that window, so
+                // head_context_len is required here. This matches the
+                // offset returned by calc_distances, which already
+                // adds head_context_len.
+                let head_idx = prev_local_end + head_context_len + i;
                 for (j, &td) in tail_distances.iter().enumerate() {
                     if td == f64::MAX {
                         continue;
                     }
-                    let head_idx = prev_local_end + head_context_len + i;
+                    // tail_distances[j] is the distance of the tail
+                    // context window starting at prev_local_end + j.
+                    // After calc_distances reverses the distances
+                    // back, that window start is the conflict end, so
+                    // tail_context_len must not be added here.
                     let tail_idx = prev_local_end + j;
-                    if head_idx <= tail_idx
-                        && tail_idx - head_idx
-                            <= expected_lines_max * Self::RELOCATE_BOTH_LENGTH_FACTOR
-                        && tail_idx - head_idx
-                            >= expected_lines_min / Self::RELOCATE_BOTH_LENGTH_FACTOR
-                    {
-                        let sum = hd + td;
-                        if sum < min_sum {
-                            min_sum = sum;
-                            best_head = head_idx;
-                            best_tail = tail_idx;
-                        }
+                    if head_idx > tail_idx {
+                        continue;
+                    }
+                    let len = tail_idx - head_idx;
+                    if len < min_len || len > max_len {
+                        continue;
+                    }
+                    let sum = hd + td;
+                    if best.is_none_or(|(s, _, _)| sum < s) {
+                        best = Some((sum, head_idx, tail_idx));
                     }
                 }
             }
-            if min_sum < f64::MAX {
-                head_offset = best_head;
-                tail_offset = best_tail;
-            }
-        }
-        if head_offset <= tail_offset {
-            self.update_conflict_code(conflict, head_offset, tail_offset);
-            Ok(true)
+            best
         } else {
-            Ok(false)
-        }
+            Some((0., head_offset, tail_offset))
+        };
+        let moved = if let Some((_, head, tail)) = best {
+            let moved = head != conflict.local_start || tail != conflict.local_end;
+            self.update_conflict_code(conflict, head, tail);
+            moved
+        } else {
+            false
+        };
+        Ok(moved)
     }
 
     fn relocate_head(
