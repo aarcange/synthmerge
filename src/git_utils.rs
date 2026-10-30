@@ -250,15 +250,23 @@ impl GitUtils {
 
         // Parse the status output to find the unmerged entry for this file
         let status_output_bytes = &output.stdout;
-        let lines = status_output_bytes.split(|&b| b == b'\0').peekable();
+        let mut lines = status_output_bytes.split(|&b| b == b'\0').peekable();
 
         let mut all_conflicts: BTreeMap<String, Vec<Conflict>> = BTreeMap::new();
-        for line_bytes in lines {
+        while let Some(line_bytes) = lines.next() {
             let line = String::from_utf8_lossy(line_bytes);
             // Skip header lines
             // if line.starts_with('#') {
             //     continue;
             // }
+
+            // Renamed or copied entries (format: 2 <XY> ... <path>) are
+            // followed in -z mode by the original path as a separate
+            // NUL terminated field: skip it
+            if line.starts_with("2 ") {
+                lines.next();
+                continue;
+            }
 
             // Parse unmerged entries (format: u <XY> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>)
             if line.starts_with("u UU") {
@@ -1514,12 +1522,20 @@ impl GitUtils {
         // and their state updated (U), or vice versa (U and D)
         // Split by null byte to handle paths with newlines
         let status_output_bytes = &status_output.stdout;
-        let lines = status_output_bytes.split(|&b| b == b'\0').peekable();
+        let mut lines = status_output_bytes.split(|&b| b == b'\0').peekable();
 
-        for line_bytes in lines {
+        while let Some(line_bytes) = lines.next() {
             let line = String::from_utf8_lossy(line_bytes);
             // Skip header lines
             if line.starts_with('#') {
+                continue;
+            }
+
+            // Renamed or copied entries (format: 2 <XY> ... <path>) are
+            // followed in -z mode by the original path as a separate
+            // NUL terminated field: skip it
+            if line.starts_with("2 ") {
+                lines.next();
                 continue;
             }
 
