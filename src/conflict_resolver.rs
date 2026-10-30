@@ -177,19 +177,31 @@ impl<'a> ConflictResolver<'a> {
         };
 
         let nr_conflicts: usize = conflicts.values().map(|c| c.len()).sum();
+        // Index previous resolved conflicts by (file_path, local_start,
+        // local_end) to avoid scanning the whole list for every
+        // conflict.
+        let mut prev_by_key: HashMap<(&str, usize, usize), Vec<&ResolvedConflict>> =
+            HashMap::with_capacity(prev_resolved_conflicts.len());
+        for prev_conflict in prev_resolved_conflicts {
+            prev_by_key
+                .entry((
+                    prev_conflict.conflict.file_path.as_str(),
+                    prev_conflict.conflict.local_start,
+                    prev_conflict.conflict.local_end,
+                ))
+                .or_default()
+                .push(prev_conflict);
+        }
         for (conflict_index, conflict) in conflicts.values().flatten().enumerate() {
             // Check if we have a previous resolved conflict that matches this one
-            let mut skip_ai_resolution = false;
-            for prev_conflict in prev_resolved_conflicts {
-                if prev_conflict.conflict.file_path == conflict.file_path
-                    && prev_conflict.conflict.local_start == conflict.local_start
-                    && prev_conflict.conflict.local_end == conflict.local_end
-                {
-                    resolved_conflicts.push(prev_conflict.clone());
-                    skip_ai_resolution = true;
+            if let Some(prev_matches) = prev_by_key.get(&(
+                conflict.file_path.as_str(),
+                conflict.local_start,
+                conflict.local_end,
+            )) {
+                for prev_conflict in prev_matches {
+                    resolved_conflicts.push((*prev_conflict).clone());
                 }
-            }
-            if skip_ai_resolution {
                 let conflict_info = format!(
                     "Skipping resolved conflict {} of {} in {}:{}->{}",
                     conflict_index + 1,

@@ -420,12 +420,24 @@ impl GitUtils {
     /// Replace new conflicts with previous ones if their hunks are identical.
     /// This is used to avoid re-resolving conflicts that haven't changed.
     fn replace_solved_conflicts(conflicts: &mut [Conflict], prev_conflicts: &[ResolvedConflict]) {
+        // Index previous conflicts by (file_path, conflict_patch) once,
+        // instead of scanning the list for each conflict.
+        let mut prev_by_key: HashMap<(&str, &str), &Conflict> =
+            HashMap::with_capacity(prev_conflicts.len());
+        for p in prev_conflicts {
+            prev_by_key
+                .entry((
+                    p.conflict.file_path.as_str(),
+                    p.conflict.conflict_patch.as_str(),
+                ))
+                .or_insert(&p.conflict);
+        }
         for conflict in conflicts.iter_mut() {
-            if let Some(prev_conflict) = prev_conflicts.iter().find(|p| {
-                p.conflict.file_path == conflict.file_path
-                    && p.conflict.conflict_patch == conflict.conflict_patch
-            }) {
-                *conflict = prev_conflict.conflict.clone();
+            if let Some(prev_conflict) = prev_by_key.get(&(
+                conflict.file_path.as_str(),
+                conflict.conflict_patch.as_str(),
+            )) {
+                *conflict = (*prev_conflict).clone();
             }
         }
     }
@@ -977,6 +989,16 @@ impl GitUtils {
         //     resolved_conflicts.pop();
         // }
 
+        // Index the resolved conflicts by (file_path, local_start) once,
+        // instead of scanning the whole list for every conflict.
+        let mut resolved_by_key: HashMap<(&str, usize), &ResolvedConflict> =
+            HashMap::with_capacity(resolved_conflicts.len());
+        for r in &resolved_conflicts {
+            resolved_by_key
+                .entry((r.conflict.file_path.as_str(), r.conflict.local_start))
+                .or_insert(r);
+        }
+
         let mut needs_retry = false;
         let mut recoverable = true;
 
@@ -994,7 +1016,7 @@ impl GitUtils {
             sorted_conflicts.sort_by_key(|c| c.local_start);
 
             let updated_content =
-                self.apply_vibe_resolution_to_file(&sorted_conflicts, &resolved_conflicts)?;
+                self.apply_vibe_resolution_to_file(&sorted_conflicts, &resolved_by_key)?;
 
             if let Some(content) = updated_content {
                 // Write back to file
@@ -1030,7 +1052,7 @@ impl GitUtils {
     fn apply_vibe_resolution_to_file(
         &mut self,
         sorted_conflicts: &[&Conflict],
-        resolved_conflicts: &[ResolvedConflict],
+        resolved_by_key: &HashMap<(&str, usize), &ResolvedConflict>,
     ) -> Result<Option<Vec<String>>> {
         // Split content into lines
         let mut lines: Vec<String> = sorted_conflicts[0].merged_local_lines.as_ref().to_vec();
@@ -1038,9 +1060,9 @@ impl GitUtils {
         // Process conflicts in reverse order to maintain correct line numbers
         for conflict in sorted_conflicts.iter().rev() {
             let file_path = &conflict.file_path;
-            let resolved_conflict = resolved_conflicts.iter().find(|r| {
-                r.conflict.file_path == *file_path && r.conflict.local_start == conflict.local_start
-            });
+            let resolved_conflict = resolved_by_key
+                .get(&(file_path.as_str(), conflict.local_start))
+                .copied();
 
             if resolved_conflict.is_none() {
                 match conflict.commit_type {
@@ -1318,6 +1340,19 @@ impl GitUtils {
 
         // First pass: collect all unique resolved conflicts with their original order positions
         let mut unique_conflicts: Vec<(String, &str, usize, usize, usize, bool)> = Vec::new();
+        // Index result by (resolved_version, local_start, file_path) to
+        // avoid rescanning the whole vector for each conflict.
+        let mut result_by_key: HashMap<(&str, usize, &str), usize> =
+            HashMap::with_capacity(result.len());
+        for (pos, r) in result.iter().enumerate() {
+            result_by_key
+                .entry((
+                    r.resolved_version.as_str(),
+                    r.conflict.local_start,
+                    r.conflict.file_path.as_str(),
+                ))
+                .or_insert(pos);
+        }
         for original in conflicts {
             let key = (
                 &original.resolved_version,
@@ -1325,15 +1360,12 @@ impl GitUtils {
                 &original.conflict.file_path,
             );
             if seen.insert(key) {
-                let pos = result
-                    .iter()
-                    .position(|r| {
-                        (
-                            &r.resolved_version,
-                            r.conflict.local_start,
-                            &r.conflict.file_path,
-                        ) == key
-                    })
+                let pos = *result_by_key
+                    .get(&(
+                        original.resolved_version.as_str(),
+                        original.conflict.local_start,
+                        original.conflict.file_path.as_str(),
+                    ))
                     .unwrap();
                 let num_models = result[pos].deduplicated_conflicts.len();
 
@@ -1378,15 +1410,8 @@ impl GitUtils {
         // Build the final ordered result
         let mut ordered_result = Vec::new();
         for (resolved_version, file_path, local_start, _, _, _) in unique_conflicts {
-            let pos = result
-                .iter()
-                .position(|r| {
-                    (
-                        &r.resolved_version,
-                        r.conflict.file_path.as_str(),
-                        r.conflict.local_start,
-                    ) == (&resolved_version, file_path, local_start)
-                })
+            let pos = *result_by_key
+                .get(&(resolved_version.as_str(), local_start, file_path))
                 .unwrap();
             ordered_result.push(result[pos].clone());
         }
