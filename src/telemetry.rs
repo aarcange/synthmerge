@@ -32,12 +32,9 @@ impl Telemetry {
         resolved_conflicts: &[ResolvedConflict],
     ) -> Self {
         let endpoints = config.get_all_endpoints();
-        let mut patchpal_endpoint = endpoints.iter().find(|e| {
-            matches!(
-                &e.config,
-                crate::config::EndpointTypeConfig::Patchpal { .. }
-            )
-        });
+        let mut patchpal_endpoint = endpoints
+            .iter()
+            .find(|e| matches!(&e.config, EndpointTypeConfig::Patchpal { .. }));
         if let Some(e) = patchpal_endpoint
             && let EndpointTypeConfig::Patchpal {
                 telemetry,
