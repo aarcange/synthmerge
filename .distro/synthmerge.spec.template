@@ -6,7 +6,7 @@
 
 Name:           synthmerge
 Version:        @@SYNTHMERGE-VERSION@@
-Release:        %autorelease
+Release:        @@SYNTHMERGE-RELEASE@@
 Summary:        AI-powered conflict resolution for Git
 
 License:        GPL-3.0-or-later OR AGPL-3.0-or-later
