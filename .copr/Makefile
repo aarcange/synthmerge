@@ -14,9 +14,11 @@ dist tarball $(PKG_TARBALL):
 	tar -czf $(PKG_TARBALL) --exclude ".git" --exclude "dist" --exclude ".distro" --exclude "release/*" --transform "s,^./,synthmerge-$(PKG_VERSION)/," .
 
 srpm: $(PKG_TARBALL)
+	dnf -y install git
 	rm -rf rpm
 	mkdir rpm
-	sed -e "s,@@SYNTHMERGE-VERSION@@,$(PKG_VERSION)," $(spec_template) > $(spec)
+	PKG_RELEASE=$$(( $$(git rev-list $$(git describe --tags --abbrev=0)..HEAD --count) + 1 )); \
+	sed -e "s,@@SYNTHMERGE-VERSION@@,$(PKG_VERSION)," -e "s,@@SYNTHMERGE-RELEASE@@,$$PKG_RELEASE," $(spec_template) > $(spec)
 	rpmbuild -bs --define "_sourcedir dist" --define "_srcrpmdir $(outdir)" $(spec)
 
 clean:
