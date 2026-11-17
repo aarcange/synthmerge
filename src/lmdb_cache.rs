@@ -52,7 +52,7 @@ impl LmdbCacheImpl {
             hasher.update(data);
         }
         let hash = hasher.finalize();
-        format!("{:x}", hash)
+        hash.iter().map(|b| format!("{:02x}", b)).collect()
     }
 
     fn cache_response(&self, cache_key: &str, response: String, compress: bool) -> Result<()> {

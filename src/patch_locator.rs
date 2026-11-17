@@ -176,7 +176,7 @@ impl PatchLocator {
         hasher.update(patch.len().to_string());
         hasher.update(patch);
         let hash = hasher.finalize();
-        let hash = format!("{:x}", hash);
+        let hash: String = hash.iter().map(|b| format!("{:02x}", b)).collect();
 
         if let Some(cache) = self.lmdb_cache.as_deref()
             && let Some(success) = cache.get_cached_minus_lines(&hash)
