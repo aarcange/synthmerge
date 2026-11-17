@@ -51,10 +51,8 @@ smerge-mode for Emacs with AI-generated conflict resolutions support.
 
 %install
 %cargo_install
-mkdir -p %{buildroot}%{_datarootdir}/%{name}
-cp -a synthmerge.yaml %{buildroot}%{_datarootdir}/%{name}
-mkdir -p %{buildroot}%{_mandir}/man1/
-cp -a target/rpm/build/%{name}-*/man/*.1 %{buildroot}%{_mandir}/man1/
+install -m0644 -D -t %{buildroot}%{_datarootdir}/%{name} synthmerge.yaml
+find target/rpm/build/%{name}* -name '*.1' -exec install -m0644 -D -t %{buildroot}%{_mandir}/man1/ {} +
 install -m0644 -D emacs/smerge-mode.el %{buildroot}%{_emacs_sitestartdir}/smerge-mode-init.el
 
 %if %{with check}
