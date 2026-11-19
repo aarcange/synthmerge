@@ -45,6 +45,10 @@ pub enum ApiRequestError {
     UsageLimitExceeded(Option<String>),
     ContentFilterRecitation,
     IncompleteGeneration,
+    /// The streamed response body was truncated mid-stream (e.g. an
+    /// AI gateway closing the connection without a proper SSE
+    /// termination). See `is_stream_body_truncated`.
+    StreamBodyTruncated,
 }
 
 impl fmt::Display for ApiRequestError {
@@ -57,6 +61,7 @@ impl fmt::Display for ApiRequestError {
             },
             ApiRequestError::ContentFilterRecitation => write!(f, "Content filter: recitation"),
             ApiRequestError::IncompleteGeneration => write!(f, "Incomplete generation"),
+            ApiRequestError::StreamBodyTruncated => write!(f, "Stream body truncated"),
         }
     }
 }
@@ -1012,6 +1017,19 @@ impl ApiClient {
                                 self.apply_wait().await;
                                 return Err(e);
                             }
+                            if Self::is_stream_body_truncated(&*e, payload) {
+                                log::warn!(
+                                    "Stream body truncated for endpoint {} after {:.1}s (timeout: {}ms, read_timeout: {}): {e:?}",
+                                    self.endpoint.name,
+                                    start.elapsed().as_secs_f64(),
+                                    self.endpoint.timeout,
+                                    self.endpoint
+                                        .read_timeout
+                                        .map_or("none".to_string(), |t| format!("{t}ms")),
+                                );
+                                self.apply_wait().await;
+                                return Err(e.context(ApiRequestError::StreamBodyTruncated));
+                            }
                             self.apply_delay(&mut delay, max_delay, &e, start.elapsed())
                                 .await;
                             last_error = Some(e);
@@ -1032,7 +1050,8 @@ impl ApiClient {
                                 match api_error {
                                     ApiRequestError::ExceedContextSize
                                     | ApiRequestError::ContentFilterRecitation
-                                    | ApiRequestError::IncompleteGeneration => {
+                                    | ApiRequestError::IncompleteGeneration
+                                    | ApiRequestError::StreamBodyTruncated => {
                                         // If it's a context size error, don't retry
                                         if let (Some(cache), Some(key)) =
                                             (&self.lmdb_cache, &cache_key)
@@ -1130,6 +1149,28 @@ impl ApiClient {
         })
     }
 
+    /// Returns true if the error is a body decode error while reading
+    /// a streaming response, i.e. the transport closed the connection
+    /// before the end of the chunked body. Some AI gateways may
+    /// truncate the stream mid-way when the inference server hits a
+    /// token limit: retrying would hit the same limit again, so it
+    /// safer not to retry even though it is technically a transport
+    /// error and should be retried. Non-streaming requests are
+    /// excluded.
+    fn is_stream_body_truncated(
+        error: &(dyn std::error::Error + 'static),
+        payload: &Value,
+    ) -> bool {
+        if !Self::is_streaming(payload) {
+            return false;
+        }
+        let chain = || std::iter::successors(Some(error), |e| e.source());
+        chain().any(|c| {
+            c.downcast_ref::<reqwest::Error>()
+                .is_some_and(reqwest::Error::is_decode)
+        })
+    }
+
     /// Format the full error chain, the Display of the outermost error
     /// is usually too generic (i.e. "error sending request for url (...)")
     /// and the interesting details (hyper, io, tls, dns) are only
@@ -1192,6 +1233,32 @@ mod tests {
 
         let payload = serde_json::json!({});
         assert!(!ApiClient::is_streaming(&payload));
+    }
+
+    #[test]
+    fn test_is_stream_body_truncated() {
+        // A plain error is not a decode error.
+        let stream = serde_json::json!({ "stream": true });
+        let error = anyhow::anyhow!("not a decode error");
+        assert!(!ApiClient::is_stream_body_truncated(&*error, &stream));
+
+        // Only a reqwest decode error (a truncated chunked body
+        // while streaming) is detected; for non-streaming requests
+        // the same error is a transient transport failure and is
+        // retried.
+        let stream = serde_json::json!({ "stream": true });
+        let no_stream = serde_json::json!({});
+        // The io error alone is not a reqwest decode error.
+        let io_only = anyhow::anyhow!(std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            "end of file before message length reached",
+        ));
+        assert!(!ApiClient::is_stream_body_truncated(&*io_only, &stream));
+        assert!(!ApiClient::is_stream_body_truncated(&*io_only, &no_stream));
+        // ApiRequestError itself is not a reqwest decode error.
+        let trunc = anyhow::anyhow!(ApiRequestError::StreamBodyTruncated);
+        assert!(!ApiClient::is_stream_body_truncated(&*trunc, &stream));
+        assert!(!ApiClient::is_stream_body_truncated(&*trunc, &no_stream));
     }
 }
 
