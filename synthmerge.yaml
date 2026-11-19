@@ -176,7 +176,11 @@ endpoints:
     url: "https://localhost:443/v1/chat/completions"
     root_certificate_pem: "~/.ssl/corp-ca.pem"
     type: "openai"
-    grammar: "ebnf"
+    #grammar: "ebnf"
+    json:
+      #reasoning_effort: high
+      #thinking_token_budget: 100000
+      #stream: true
 
   - name: "llama.cpp vulkan minimal"
     url: "http://localhost:8811/v1/chat/completions"
