@@ -980,7 +980,8 @@ impl ApiClient {
                         self.endpoint.name,
                         e
                     );
-                    self.apply_delay(&mut delay, max_delay, &e).await;
+                    self.apply_delay(&mut delay, max_delay, &e, start.elapsed())
+                        .await;
                     last_error = Some(e);
                     continue;
                 }
@@ -1011,7 +1012,8 @@ impl ApiClient {
                                 self.apply_wait().await;
                                 return Err(e);
                             }
-                            self.apply_delay(&mut delay, max_delay, &e).await;
+                            self.apply_delay(&mut delay, max_delay, &e, start.elapsed())
+                                .await;
                             last_error = Some(e);
                             continue;
                         }
@@ -1043,7 +1045,8 @@ impl ApiClient {
                                     ApiRequestError::UsageLimitExceeded(_) => {}
                                 }
                             }
-                            self.apply_delay(&mut delay, max_delay, &e).await;
+                            self.apply_delay(&mut delay, max_delay, &e, start.elapsed())
+                                .await;
                             last_error = Some(e);
                         }
                     }
@@ -1060,7 +1063,8 @@ impl ApiClient {
                         self.apply_wait().await;
                         return Err(e.into());
                     }
-                    self.apply_delay(&mut delay, max_delay, &e).await;
+                    self.apply_delay(&mut delay, max_delay, &e, start.elapsed())
+                        .await;
                     last_error = Some(e.into());
                 }
             }
@@ -1089,14 +1093,20 @@ impl ApiClient {
         }
     }
 
-    async fn apply_delay<E>(&self, delay: &mut Duration, max_delay: Duration, error: &E)
-    where
+    async fn apply_delay<E>(
+        &self,
+        delay: &mut Duration,
+        max_delay: Duration,
+        error: &E,
+        elapsed: Duration,
+    ) where
         E: std::fmt::Display + 'static + std::fmt::Debug,
     {
         log::warn!(
-            "Retrying endpoint {} in {:?} after error: {:?}{}",
+            "Retrying endpoint {} in {:?} after error (elapsed: {:.1}s): {:?}{}",
             self.endpoint.name,
             delay,
+            elapsed.as_secs_f64(),
             error,
             Self::error_chain(error)
         );
