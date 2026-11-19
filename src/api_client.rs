@@ -951,22 +951,10 @@ impl ApiClient {
                     }
                 }
                 Err(e) => {
-                    let mut source = std::error::Error::source(&e);
-                    let mut is_hyper_error = false;
-                    while let Some(err) = source {
-                        if err
-                            .downcast_ref::<hyper_util::client::legacy::Error>()
-                            .is_some()
-                        {
-                            is_hyper_error = true;
-                            break;
-                        }
-                        source = err.source();
-                    }
-                    if e.is_timeout() && !is_hyper_error {
+                    if Self::is_request_timeout(&e) {
                         // Don't retry on timeout errors or it may waste energy
                         log::warn!(
-                            "Timeout error for endpoint {} after {:.1}s (configured timeout: {}ms): {e:?}",
+                            "Timeout error for endpoint {} after {:.1}s (timeout: {}ms): {e:?}",
                             self.endpoint.name,
                             start.elapsed().as_secs_f64(),
                             self.endpoint.timeout
@@ -1018,6 +1006,22 @@ impl ApiClient {
         *delay = std::cmp::min(*delay * 2, max_delay);
     }
 
+    /// Returns true if the error was caused by a reqwest timeout (the
+    /// overall `timeout` or `read_timeout`). Timeouts raised by the OS
+    /// or the connector (e.g. `tcp_user_timeout` on a dead socket) are
+    /// excluded so they are still retried.
+    fn is_request_timeout(error: &(dyn std::error::Error + 'static)) -> bool {
+        let chain = || std::iter::successors(Some(error), |e| e.source());
+        chain().any(|c| {
+            c.downcast_ref::<reqwest::Error>()
+                .is_some_and(reqwest::Error::is_timeout)
+        }) && !chain().any(|c| {
+            c.is::<hyper_util::client::legacy::Error>()
+                || c.downcast_ref::<std::io::Error>()
+                    .is_some_and(|io| io.kind() == std::io::ErrorKind::TimedOut)
+        })
+    }
+
     /// Format the full error chain, the Display of the outermost error
     /// is usually too generic (i.e. "error sending request for url (...)")
     /// and the interesting details (hyper, io, tls, dns) are only
@@ -1047,6 +1051,27 @@ impl ApiClient {
             source = cause.source();
         }
         chain
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_request_timeout() {
+        // OS-level timeouts (e.g. tcp_user_timeout on a dead socket)
+        // must not be treated as request timeouts: they are retried.
+        let error = std::io::Error::from(std::io::ErrorKind::TimedOut);
+        assert!(!ApiClient::is_request_timeout(&error));
+
+        // Other io errors are not timeouts.
+        let error = std::io::Error::from(std::io::ErrorKind::ConnectionReset);
+        assert!(!ApiClient::is_request_timeout(&error));
+
+        // A plain error is not a timeout.
+        let error = anyhow::anyhow!("not a timeout");
+        assert!(!ApiClient::is_request_timeout(&*error));
     }
 }
 
