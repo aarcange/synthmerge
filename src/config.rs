@@ -43,6 +43,7 @@ pub struct EndpointConfig {
     pub no_user_agent: bool,
     #[serde(default)]
     pub user_agent_suffix: Box<Option<String>>,
+    pub read_timeout: Option<u64>,
     #[serde(flatten)]
     pub config: EndpointTypeConfig,
     #[serde(default)]
@@ -353,6 +354,18 @@ impl Config {
     }
 
     fn validate_endpoint(endpoint: &EndpointConfig, index: usize, path: &Path) -> Result<()> {
+        if endpoint.read_timeout.is_some()
+            && !matches!(
+                endpoint.config,
+                EndpointTypeConfig::OpenAI { .. } | EndpointTypeConfig::Anthropic { .. }
+            )
+        {
+            return Err(anyhow::anyhow!(
+                "Endpoint {} in config file {} has read_timeout set but streaming is not supported for this endpoint type",
+                index,
+                path.display()
+            ));
+        }
         if let EndpointTypeConfig::OpenAI { variants, .. }
         | EndpointTypeConfig::Anthropic { variants, .. } = &endpoint.config
         {
@@ -518,6 +531,10 @@ impl Config {
 mod tests {
     use super::*;
 
+    fn make(yaml: &str) -> EndpointConfig {
+        serde_yaml::from_str(yaml).unwrap()
+    }
+
     #[test]
     fn test_config_loading() {
         let config_yaml = include_str!(concat!("../", env!("CARGO_PKG_NAME"), ".yaml"));
@@ -548,6 +565,112 @@ mod tests {
         assert_eq!(config.endpoints[11].name, "llama.cpp vulkan");
         assert_eq!(config.endpoints[12].name, "llama.cpp vulkan no_chat");
         assert_eq!(config.endpoints[13].name, "Patchpal AI");
+    }
+
+    #[test]
+    fn test_stream_json_accepted() {
+        // stream in the endpoint json is accepted: it is set by the
+        // user through the json field.
+        let endpoint = make(
+            r#"
+name: test
+url: https://example.com
+type: openai
+json:
+  stream: true
+"#,
+        );
+        assert!(Config::validate_endpoint(&endpoint, 0, Path::new("test.yaml")).is_ok());
+
+        // stream in a variant json is accepted too.
+        let endpoint = make(
+            r#"
+name: test
+url: https://example.com
+type: openai
+variants:
+  - name: v1
+    json:
+      stream: true
+"#,
+        );
+        assert!(Config::validate_endpoint(&endpoint, 0, Path::new("test.yaml")).is_ok());
+
+        // stream in the endpoint json is accepted for anthropic as well.
+        let endpoint = make(
+            r#"
+name: test
+url: https://example.com
+type: anthropic
+json:
+  stream: true
+"#,
+        );
+        assert!(Config::validate_endpoint(&endpoint, 0, Path::new("test.yaml")).is_ok());
+    }
+
+    #[test]
+    fn test_stream_options_json_accepted() {
+        // stream_options in the endpoint json is accepted: it is set
+        // by the user through the json field.
+        let endpoint = make(
+            r#"
+name: test
+url: https://example.com
+type: openai
+json:
+  stream: true
+  stream_options:
+    include_usage: true
+"#,
+        );
+        assert!(Config::validate_endpoint(&endpoint, 0, Path::new("test.yaml")).is_ok());
+
+        // stream_options in a variant json is accepted too.
+        let endpoint = make(
+            r#"
+name: test
+url: https://example.com
+type: openai
+variants:
+  - name: v1
+    json:
+      stream: true
+      stream_options:
+        include_usage: true
+"#,
+        );
+        assert!(Config::validate_endpoint(&endpoint, 0, Path::new("test.yaml")).is_ok());
+    }
+
+    #[test]
+    fn test_read_timeout_requires_streaming_capable_type() {
+        // read_timeout is accepted for openai and anthropic endpoints.
+        for type_ in ["openai", "anthropic"] {
+            let endpoint = make(&format!(
+                r#"
+name: test
+url: https://example.com
+type: {type_}
+read_timeout: 1000
+json:
+  stream: true
+"#
+            ));
+            assert!(Config::validate_endpoint(&endpoint, 0, Path::new("test.yaml")).is_ok());
+        }
+
+        // read_timeout is rejected for endpoint types that do not
+        // support streaming.
+        let endpoint = make(
+            r#"
+name: test
+url: https://example.com
+type: patchpal
+read_timeout: 1000
+"#,
+        );
+        assert!(Config::validate_endpoint(&endpoint, 0, Path::new("test.yaml")).is_err());
     }
 }
 

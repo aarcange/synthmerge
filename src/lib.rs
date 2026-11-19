@@ -15,6 +15,8 @@ mod lmdb_cache;
 pub mod logger;
 mod patch_locator;
 mod prob;
+mod sse_parser;
+mod stream_accumulator;
 
 // Local Variables:
 // rust-format-on-save: t

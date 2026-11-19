@@ -20,6 +20,8 @@ mod lmdb_cache_main;
 mod logger;
 mod patch_locator;
 mod prob;
+mod sse_parser;
+mod stream_accumulator;
 #[cfg(feature = "telemetry")]
 mod telemetry;
 

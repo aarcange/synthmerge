@@ -309,6 +309,18 @@ endpoints:
 
 In this example, if all variants of "Gemini 3.8 Flash" fail (e.g., due to a content filter or service outage), synthmerge will try "fallback Gemini 3.7 Flash" first. If that also fails, it will try "fallback OpenAI gpt-6-aura".
 
+## 🌊 SSE Streaming
+
+Streaming responses over Server-Sent Events are supported for OpenAI-compatible and Anthropic endpoints:
+  - Enable with `stream: true` in the endpoint or variant `json` field
+  - On OpenAI-compatible endpoints, add `stream_options: {include_usage: true}` to receive token usage in a final chunk; without it, token statistics (input/output tokens and benchmark averages) are unavailable
+  - `read_timeout` (milliseconds) bounds the idle time between streamed chunks, so a stalled connection is detected early, while `timeout` (default 1 hour) still caps the whole request including the full streamed body
+  - `read_timeout` is also honored for non-streaming requests, where it bounds the wait for the response body, but it is mainly useful with streaming
+  - It must exceed the worst-case prefill time before the first chunk arrives, since local prefill can take minutes for very large prompts
+  - llama.cpp and vLLM stream `reasoning_content` deltas, so thinking resets the idle timer. Hosted APIs that hide reasoning (e.g. OpenAI or the Gemini OpenAI-compatible endpoint with a high `reasoning_effort`) may stay silent while thinking, making a short `read_timeout` risky there
+  - With `stream: true`, Anthropic may send periodic `ping` events (and `thinking_delta` events unless the thinking output is omitted) while the model thinks, but `message_start` is sent before prefill completes: `read_timeout` still needs to cover the prefill time after `message_start` up to the first `content_block_delta` (and then the idle time between chunks)
+  - Timeouts are not retried on the same endpoint (fallbacks are still tried), so leave an ample margin
+
 ## 🔤 Markdown Backtick Support
 
 Markdown backtick fences are enabled by default. However, if a specific model gets confused by the superflous fences they can be disabled:

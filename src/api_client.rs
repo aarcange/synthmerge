@@ -8,8 +8,12 @@ use crate::config::{
 use crate::conflict_resolver::ConflictResolver;
 use crate::lmdb_cache::{ApiCache, LmdbCacheImpl};
 use crate::prob;
+use crate::sse_parser::SseParser;
+use crate::stream_accumulator::StreamAccumulator;
 use anyhow::{Context, Result, bail};
+use futures::StreamExt;
 use reqwest::Certificate;
+use serde_json::Value;
 use std::fmt;
 use std::fs::File;
 use std::io::Read;
@@ -104,6 +108,19 @@ impl ApiClient {
             })?;
             builder = builder.add_root_certificate(cert);
             log::trace!("Root certificate loaded successfully from {}", cert_path);
+        }
+
+        if let Some(read_timeout) = endpoint.read_timeout {
+            // read_timeout bounds the idle time between chunks, so it
+            // also bounds the wait before the first chunk/event (e.g.
+            // the prefill time). Note that for Anthropic, message_start
+            // is sent before prefill completes: the real prefill
+            // wait is between message_start and the first
+            // content_block_delta (or the periodic pings while
+            // thinking), so read_timeout must cover that interval.
+            // `timeout` still caps the whole request, including the
+            // full streamed body.
+            builder = builder.read_timeout(Duration::from_millis(read_timeout));
         }
 
         builder
@@ -248,6 +265,48 @@ impl ApiClient {
         );
     }
 
+    /// Whether the payload requests streaming: the user enables it
+    /// through the `stream` key of the `json` field.
+    fn is_streaming(payload: &Value) -> bool {
+        payload
+            .get("stream")
+            .and_then(Value::as_bool)
+            .is_some_and(|stream| stream)
+    }
+
+    /// Read the response body, decoding SSE events when streaming.
+    /// Returns the SSE events rebuilt into a non-streaming JSON body.
+    async fn read_response(&self, payload: &Value, response: reqwest::Response) -> Result<String> {
+        let is_sse = Self::is_streaming(payload)
+            && response
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .is_some_and(|v| {
+                    v.split(';')
+                        .next()
+                        .unwrap_or_default()
+                        .trim()
+                        .eq_ignore_ascii_case("text/event-stream")
+                });
+        if !is_sse {
+            // error bodies (JSON) or non-streaming requests
+            return Ok(response.text().await?);
+        }
+
+        let mut acc = StreamAccumulator::new(matches!(
+            self.endpoint.config,
+            EndpointTypeConfig::Anthropic { .. }
+        ));
+        let mut stream = response.bytes_stream();
+        let mut parser = SseParser::default();
+        while let Some(chunk) = stream.next().await {
+            parser.feed(&mut acc, &chunk?);
+        }
+        parser.finish(&mut acc);
+        acc.finish()
+    }
+
     async fn query_openai_variant(
         &self,
         request: &ApiRequest,
@@ -368,6 +427,17 @@ impl ApiClient {
                     );
                     bail!(ApiRequestError::ExceedContextSize);
                 }
+
+		if json_response.get("object").and_then(|v| v.as_str()) == Some("error")
+		    && json_response.get("message").and_then(|v| v.as_str())
+		    .is_some_and(|m| m.contains("maximum context length"))
+		{
+		    log::warn!(
+			"Context size error for endpoint {}. Not retrying.",
+			self.endpoint.name
+		    );
+		    bail!(ApiRequestError::ExceedContextSize);
+		}
 
                 // Check for content filter recitation error in OpenAI responses
                 if let Some(choices) = json_response.get("choices").and_then(|c| c.as_array())
@@ -910,11 +980,24 @@ impl ApiClient {
 
             match response {
                 Ok(response) => {
-                    let response_text = match response.text().await {
+                    let response_text = match self.read_response(payload, response).await {
                         Ok(text) => text,
                         Err(e) => {
+                            if Self::is_request_timeout(&*e) {
+                                log::warn!(
+                                    "Stream timeout for endpoint {} after {:.1}s (timeout: {}ms, read_timeout: {}): {e:?}",
+                                    self.endpoint.name,
+                                    start.elapsed().as_secs_f64(),
+                                    self.endpoint.timeout,
+                                    self.endpoint
+                                        .read_timeout
+                                        .map_or("none".to_string(), |t| format!("{t}ms")),
+                                );
+                                self.apply_wait().await;
+                                return Err(e);
+                            }
                             self.apply_delay(&mut delay, max_delay, &e).await;
-                            last_error = Some(e.into());
+                            last_error = Some(e);
                             continue;
                         }
                     };
@@ -1072,6 +1155,18 @@ mod tests {
         // A plain error is not a timeout.
         let error = anyhow::anyhow!("not a timeout");
         assert!(!ApiClient::is_request_timeout(&*error));
+    }
+
+    #[test]
+    fn test_is_streaming() {
+        let payload = serde_json::json!({ "stream": true });
+        assert!(ApiClient::is_streaming(&payload));
+
+        let payload = serde_json::json!({ "stream": false });
+        assert!(!ApiClient::is_streaming(&payload));
+
+        let payload = serde_json::json!({});
+        assert!(!ApiClient::is_streaming(&payload));
     }
 }
 
