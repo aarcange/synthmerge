@@ -13,6 +13,7 @@ import os
 models = [
     "DeepSeek-V4.1-Flash-1017 (high, temp 0) {0.4.1}",
     "DeepSeek-V4.1-Flash-1017 (max, temp 0) {0.4.1}",
+    "Gemini 4 Carbon (medium) {0.4.1}",
     "Gemini 3.8 Flash (medium) {0.3.16}",
     "Gemini 3.7 Flash (medium)",
     "Gemini 3.6 Flash (medium)",
@@ -53,6 +54,7 @@ models = [
     # "Qwen3-Coder-Next-UD-Q6_K_XL (default)",
     "GLM 5.3 (high) {0.3.16}",
     "Devstral-Small-2-24B-Instruct-2512-UD-Q6_K_XL (default)",
+    "Muse-Spark-Open-816B-A42B-NVFP4 (none, temp 0) {0.4.1}",
 ]
 
 
@@ -216,7 +218,7 @@ open_source_arrow_length = 20
 
 def is_open_source(model_name):
     """Check if the model is an open source model."""
-    open_source_keywords = ["qwen", "deepseek", "glm", "devstral"]
+    open_source_keywords = ["qwen", "deepseek", "glm", "devstral", "muse-spark-open"]
     lower_name = model_name.lower()
     return any(keyword in lower_name for keyword in open_source_keywords)
 

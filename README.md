@@ -402,11 +402,20 @@ The following statistics were generated using the `synthmerge_bench` tool on a C
 
 This measurement used only new test data never exposed to the model during the fine tuning process.
 
-![Benchmark Results](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge_bench-20261029.jpg)
+![Benchmark Results](https://gitlab.com/aarcange/synthmerge-assets/-/raw/main/synthmerge_bench-20261119.jpg)
 
 ### The Numbers
 
 ```
+Model: Gemini 4 Carbon (medium) {0.4.1}
+  Accuracy: 72.98% (824/1129)
+  Accuracy (aligned): 76.88% (868/1129)
+  Accuracy (stripped): 80.25% (906/1129)
+  Error Rate: 2.39% (27/1129)
+  Average input tokens: 5329.29
+  Average output tokens: 1272.99
+  Average duration: 19.06 s
+
 Model: Gemini 3.8 Flash (medium) {0.3.16}
   Accuracy: 72.19% (815/1129)
   Accuracy (aligned): 76.26% (861/1129)
@@ -778,6 +787,16 @@ Model: Gemini 3 Flash (none) # reasoning_effort: none
   Error Rate: 0.62% (7/1129)
   Average tokens: 5359.16
   Average duration: 1.73 s
+
+# temperature: 0 reasoning_effort: none
+Model: Muse-Spark-Open-816B-A42B-NVFP4 (none, temp 0) {0.4.1}
+  Accuracy: 63.42% (716/1129)
+  Accuracy (aligned): 68.56% (774/1129)
+  Accuracy (stripped): 72.45% (818/1129)
+  Error Rate: 0.00% (0/1129)
+  Average input tokens: 4352.57
+  Average output tokens: 952.74
+  Average duration: 7.91 s
 
 # temperature 0.15 top_p: 0.8 top_k: 20 min_p: 0.00 reasoning_effort: high
 Model: GLM 5.3 (high) {0.3.16}
