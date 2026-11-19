@@ -17,7 +17,8 @@ srpm: $(PKG_TARBALL)
 	dnf -y install git
 	rm -rf rpm
 	mkdir rpm
-	PKG_RELEASE=$$(( $$(git rev-list $$(git describe --tags --abbrev=0)..HEAD --count) + 1 )); \
+	PKG_COMMIT=$$(git log -n1 --format=%H -G'^version\s*=\s*"[0-9]+\.[0-9]+\.[0-9]+"' -- Cargo.toml); \
+	PKG_RELEASE=$$(( $$(git rev-list "$$PKG_COMMIT"..HEAD --count) + 1 )); \
 	sed -e "s,@@SYNTHMERGE-VERSION@@,$(PKG_VERSION)," -e "s,@@SYNTHMERGE-RELEASE@@,$$PKG_RELEASE," $(spec_template) > $(spec)
 	rpmbuild -bs --define "_sourcedir dist" --define "_srcrpmdir $(outdir)" $(spec)
 
