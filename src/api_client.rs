@@ -1082,9 +1082,9 @@ impl ApiClient {
                         self.apply_wait().await;
                         return Err(e.into());
                     }
-                    self.apply_delay(&mut delay, max_delay, &e, start.elapsed())
+                    let err = last_error.insert(e.into());
+                    self.apply_delay(&mut delay, max_delay, err, start.elapsed())
                         .await;
-                    last_error = Some(e.into());
                 }
             }
         }
@@ -1112,22 +1112,19 @@ impl ApiClient {
         }
     }
 
-    async fn apply_delay<E>(
+    async fn apply_delay(
         &self,
         delay: &mut Duration,
         max_delay: Duration,
-        error: &E,
+        error: &anyhow::Error,
         elapsed: Duration,
-    ) where
-        E: std::fmt::Display + 'static + std::fmt::Debug,
-    {
+    ) {
         log::warn!(
-            "Retrying endpoint {} in {:?} after error (elapsed: {:.1}s): {:?}{}",
+            "Retrying endpoint {} in {:?} after error (elapsed: {:.1}s): {:?}",
             self.endpoint.name,
             delay,
             elapsed.as_secs_f64(),
             error,
-            Self::error_chain(error)
         );
         tokio::time::sleep(*delay).await;
         *delay = std::cmp::min(*delay * 2, max_delay);
@@ -1169,37 +1166,6 @@ impl ApiClient {
             c.downcast_ref::<reqwest::Error>()
                 .is_some_and(reqwest::Error::is_decode)
         })
-    }
-
-    /// Format the full error chain, the Display of the outermost error
-    /// is usually too generic (i.e. "error sending request for url (...)")
-    /// and the interesting details (hyper, io, tls, dns) are only
-    /// reachable through the sources.
-    fn error_chain<E>(error: &E) -> String
-    where
-        E: std::fmt::Display + 'static,
-    {
-        let any = error as &dyn std::any::Any;
-
-        // anyhow::Error doesn't implement std::error::Error, it
-        // exposes its own chain() instead
-        if let Some(error) = any.downcast_ref::<anyhow::Error>() {
-            return error
-                .chain()
-                .skip(1)
-                .map(|cause| format!("\n  caused by: {}", cause))
-                .collect();
-        }
-
-        let mut chain = String::new();
-        let mut source = any
-            .downcast_ref::<reqwest::Error>()
-            .and_then(|e| std::error::Error::source(e));
-        while let Some(cause) = source {
-            chain.push_str(&format!("\n  caused by: {}", cause));
-            source = cause.source();
-        }
-        chain
     }
 }
 
