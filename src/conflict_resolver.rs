@@ -135,7 +135,7 @@ impl<'a> ConflictResolver<'a> {
     const REGEXP_PATCHED_CODE_START: &'static str =
         r"(?ms)^(?:```)?[{<|]{1,3}patched_code[|>}]{1,3}$\n";
     const REGEXP_PATCHED_CODE_END: &'static str =
-        r"(?ms)^[{<|/]{1,4}patched_code[|>}]{1,3}(?:```|[<|]{1,2}eot[|>]{1,2})?$";
+        r"(?ms)^[{<|/]{1,4}patched_code[|>}]{1,3}(?:```)?$";
     pub fn new(
         config: &'a Config,
         git_diff: Option<String>,
