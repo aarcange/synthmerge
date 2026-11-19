@@ -1,5 +1,14 @@
 endpoints:
 
+  - name: "Gemini 4 Carbon"
+    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    type: "openai"
+    api_key_file: "~/.keys/gemini.api-key"
+    primary: true
+    json:
+      model: "gemini-4-carbon"
+      #reasoning_effort: "medium"
+
   - name: "Gemini 3.8 Flash"
     url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
     type: "openai"
@@ -18,15 +27,6 @@ endpoints:
           model: "gemini-3.7-flash"
           #reasoning_effort: "high"
         #use_backticks: false
-
-  - name: "Gemini 3.1 Pro"
-    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-    type: "openai"
-    api_key_file: "~/.keys/gemini.api-key"
-    primary: true
-    json:
-      model: "gemini-3.1-pro-preview"
-      reasoning_effort: "medium"
 
   - name: "gpt-6.1-sol"
     url: "https://api.openai.com/v1/chat/completions"
@@ -73,18 +73,28 @@ endpoints:
         json:
           reasoning_effort: "high"
 
-  - name: "Claude Opus 5"
+  - name: "Claude Opus 5.5"
     url: "https://api.anthropic.com/v1/messages"
     type: "anthropic"
     x_api_key_file: "~/.keys/anthropic.api-key"
     primary: true
     json:
       max_tokens: 128000
-      model: "claude-opus-5"
+      model: "claude-opus-5-5"
       thinking:
         type: "adaptive"
+      # Streaming example
+      #stream: true
     headers:
       anthropic-version: "2023-06-01"
+    # With `stream: true`, Anthropic may send periodic `ping` events
+    # (and `thinking_delta` events unless the thinking output is
+    # omitted) while the model thinks. `message_start` is sent before
+    # prefill completes, so `read_timeout` still needs to cover the
+    # prefill time after `message_start` up to the first
+    # `content_block_delta` (and then the idle time between chunks).
+    # It is meant to be enabled together with `stream: true` above.
+    # read_timeout: 600000
     fallbacks:
       - name: "fallback Claude Opus 4.6"
         url: "https://api.anthropic.com/v1/messages"
@@ -199,6 +209,30 @@ endpoints:
       # applied to the logprobs, which is a client side only
       # approximated beam search
       #n_probs: 2
+
+      # Streaming example (OpenAI compatible endpoints such as llama.cpp
+      # and vLLM). Streaming lets `read_timeout` detect a stalled
+      # connection early, so `timeout` can be set generously for long
+      # generations. `read_timeout` bounds the idle time between streamed
+      # chunks, and `timeout` still caps the whole request.
+      #stream: true
+      # `stream_options: {include_usage: true}` makes the server send the
+      # token usage in a final chunk. Without it the token statistics
+      # (input/output tokens, bench averages) are unavailable.
+      #stream_options: {include_usage: true}
+    # `read_timeout` applies from the moment the request is sent until
+    # the first chunk arrives. It must exceed the worst-case prefill
+    # time for the prompt on the server, since local prefill can take
+    # minutes for very large prompts. llama.cpp and vLLM stream
+    # `reasoning_content` deltas, so thinking resets the idle timer.
+    # Hosted APIs that hide the reasoning (e.g. OpenAI or the Gemini
+    # OpenAI compatible endpoint with a high reasoning_effort) may stay
+    # silent while thinking, so a short read_timeout is risky there.
+    # Timeouts are not retried on the same endpoint (fallbacks are still
+    # tried), so leave an ample margin.
+    # 10 minutes between chunks; timeout (default 1 hour) still caps
+    # the whole request
+    #read_timeout: 600000
     variants:
       # one query for each entry in the variants list
       - name: "default"
